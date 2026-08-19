@@ -12,7 +12,7 @@ import {
 import type { SchemaField, SchemaLayoutNode } from '../parse/types';
 import { createStyles } from '../theme/createStyles';
 import { useFormioTheme } from '../theme/FormioThemeProvider';
-import { AvailableWidthContext, useAvailableWidth } from './AvailableWidth';
+import { AvailableWidthContext } from './AvailableWidth';
 import { resolveColumnSpan } from './columnSpan';
 import { isSelfLabelled, SchemaFieldControl } from './SchemaFieldControl';
 
@@ -148,12 +148,11 @@ function ColumnsNode({
 }) {
   const styles = useStyles();
   const { metrics } = useFormioTheme();
-  const availableWidth = useAvailableWidth();
 
   return (
     <View style={styles.columnsRow}>
       {node.columns.map((column, columnIndex) => {
-        const span = resolveColumnSpan(column.width, availableWidth, metrics.grid);
+        const span = resolveColumnSpan(column.width, metrics.grid);
         return (
           <View
             key={`column-${node.key}-${columnIndex}`}

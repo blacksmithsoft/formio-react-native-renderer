@@ -57,9 +57,17 @@ describe('layout is measured, not assumed', () => {
     expect(offenders.map((file) => file.path)).toEqual([]);
   });
 
-  it('resolves column widths from the measured container', () => {
-    const columnLayout = files.find((file) => file.path === 'form/columnLayout.ts');
-    expect(columnLayout?.text).toMatch(/containerWidth/);
+  it('resolves column widths from the schema alone, identically in both renderers', () => {
+    for (const path of ['form/columnLayout.ts', 'render/columnSpan.ts']) {
+      const source = files.find((file) => file.path === path);
+      expect(source, path).toBeDefined();
+      // An authored span is honoured at every container width, so a row built as four across is
+      // four across everywhere. Reintroducing a width comparison here would silently rearrange
+      // every form that relies on that.
+      expect(code(source!.text), path).not.toMatch(
+        /containerWidth|availableWidth|BREAKPOINTS\s*\[|\.\s*breakpoint/
+      );
+    }
   });
 });
 

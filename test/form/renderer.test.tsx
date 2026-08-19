@@ -348,25 +348,41 @@ describe('layout', () => {
     ],
   };
 
-  it('stacks columns below the author-chosen breakpoint', () => {
+  const spansOf = (view: ReturnType<typeof mount>) =>
+    view.renderer.root
+      .findAll((node) => (node.type as unknown as string) === 'View')
+      .map((node) => styleOf(node).flexBasis)
+      .filter(Boolean);
+
+  it('honours the authored widths on a phone-width container', () => {
     const view = mount(columns);
     view.measure(390);
-    const spans = view.renderer.root
-      .findAll((node) => (node.type as unknown as string) === 'View')
-      .map((node) => styleOf(node).flexBasis)
-      .filter(Boolean);
-    expect(spans).toContain('100%');
-    expect(spans).not.toContain('50%');
+    expect(spansOf(view)).toEqual(['50%', '50%']);
   });
 
-  it('honours the authored widths above it', () => {
+  it('honours them on a wide container too', () => {
     const view = mount(columns);
     view.measure(1024);
-    const spans = view.renderer.root
-      .findAll((node) => (node.type as unknown as string) === 'View')
-      .map((node) => styleOf(node).flexBasis)
-      .filter(Boolean);
-    expect(spans).toContain('50%');
+    expect(spansOf(view)).toEqual(['50%', '50%']);
+  });
+
+  it('puts four quarter-width columns on one row', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'columns',
+          key: 'row',
+          columns: [
+            { width: 3, size: 'md', components: [textfield('a')] },
+            { width: 3, size: 'md', components: [textfield('b')] },
+            { width: 3, size: 'md', components: [textfield('c')] },
+            { width: 3, size: 'md', components: [textfield('d')] },
+          ],
+        },
+      ],
+    });
+    view.measure(390);
+    expect(spansOf(view)).toEqual(['25%', '25%', '25%', '25%']);
   });
 
   it('collapses a panel and hides its contents', () => {

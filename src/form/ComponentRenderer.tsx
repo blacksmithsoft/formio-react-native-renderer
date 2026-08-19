@@ -179,16 +179,15 @@ function PanelNode({ component, path, row }: { component: FormComponent; path: s
   );
 }
 
-/** `columns` — a wrapping 12-unit row that stacks at the author's own breakpoint. */
+/** `columns` — a wrapping 12-unit row that keeps the authored widths at any width. */
 function ColumnsNode({ component, path, row }: { component: FormComponent; path: string; row?: Record<string, unknown> }) {
   const styles = useFormStyles();
   const { metrics } = useFormioTheme();
-  const { containerWidth } = useFormioRender();
 
   return (
     <View style={styles.columnsRow}>
       {(component.columns ?? []).map((column, index) => {
-        const span = resolveFormColumnSpan(column.width, column.size, containerWidth, metrics.grid.columns);
+        const span = resolveFormColumnSpan(column.width, metrics.grid.columns);
         return (
           <View
             key={`${component.key}-column-${index}`}

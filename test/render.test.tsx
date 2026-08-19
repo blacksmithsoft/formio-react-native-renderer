@@ -128,7 +128,7 @@ describe('field layout', () => {
   });
 });
 
-describe('responsive columns', () => {
+describe('columns', () => {
   const columns = nodesOf([
     {
       type: 'columns',
@@ -146,33 +146,40 @@ describe('responsive columns', () => {
       .filter((basis) => basis !== undefined);
   }
 
-  it('collapses below the breakpoint, pairing narrow columns two per row', () => {
-    const renderer = render(<SchemaLayoutRenderer nodes={columns} values={{}} />);
-    measure(renderer, metrics.grid.breakpoint - 1);
-
-    expect(spans(renderer)).toEqual(['50%', '100%']);
-  });
-
-  it('keeps the authored spans at or above the breakpoint', () => {
-    const renderer = render(<SchemaLayoutRenderer nodes={columns} values={{}} />);
-    measure(renderer, metrics.grid.breakpoint);
-
+  function expectAuthored(renderer: ReactTestRenderer): void {
     const [narrow, wide] = spans(renderer) as string[];
     expect(narrow?.startsWith('33.33')).toBe(true);
     expect(wide?.startsWith('66.66')).toBe(true);
+  }
+
+  it('keeps the authored spans before the first measurement', () => {
+    expectAuthored(render(<SchemaLayoutRenderer nodes={columns} values={{}} />));
   });
 
-  it('assumes the narrow layout before the first measurement', () => {
+  it('keeps them at every container width, so the summary matches the schema', () => {
     const renderer = render(<SchemaLayoutRenderer nodes={columns} values={{}} />);
-    expect(spans(renderer)).toEqual(['50%', '100%']);
+
+    for (const width of [320, metrics.grid.breakpoint - 1, metrics.grid.breakpoint, 1280]) {
+      measure(renderer, width);
+      expectAuthored(renderer);
+    }
   });
 
-  it('measures the container, not the window', () => {
-    const renderer = render(<SchemaLayoutRenderer nodes={columns} values={{}} />);
-    measure(renderer, 1280);
-    measure(renderer, 500);
+  it('clamps a column authored wider than the row', () => {
+    const renderer = render(
+      <SchemaLayoutRenderer
+        nodes={nodesOf([
+          {
+            type: 'columns',
+            key: 'row',
+            columns: [{ width: 20, components: [{ type: 'textfield', key: 'qty', label: 'Qty' }] }],
+          },
+        ])}
+        values={{}}
+      />
+    );
 
-    expect(spans(renderer)).toEqual(['50%', '100%']);
+    expect(spans(renderer)).toEqual(['100%']);
   });
 });
 
