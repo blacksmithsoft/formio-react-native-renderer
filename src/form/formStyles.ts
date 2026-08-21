@@ -226,6 +226,52 @@ export const useFormStyles = createStyles(({ colors, metrics }) => ({
     color: colors.text.tertiary,
   },
 
+  /** The scroller's own frame: the border stays put while the columns move inside it. */
+  gridTable: {
+    borderWidth: metrics.control.borderWidth,
+    borderColor: colors.border.default,
+    borderRadius: metrics.form.rowRadius,
+    backgroundColor: colors.surface.card,
+    overflow: 'hidden',
+  },
+  /** A horizontal scroller lays its content out as a row; the table's rows stack. */
+  gridTableContent: {
+    flexDirection: 'column',
+  },
+  gridTableRow: {
+    flexDirection: 'row',
+    borderTopWidth: metrics.control.borderWidth,
+    borderTopColor: colors.border.default,
+  },
+  gridTableHeaderRow: {
+    borderTopWidth: 0,
+    alignItems: 'center',
+    backgroundColor: colors.surface.washAlt,
+  },
+  /**
+   * The width is supplied per table, measured — `flex` cannot be used here. Inside a horizontal
+   * scroller the main axis is unbounded, so there is no free space to divide and every flexed
+   * column would collapse to the width of whatever happens to be in it.
+   */
+  gridTableCell: {
+    paddingHorizontal: metrics.form.tableCellPadX,
+    paddingVertical: metrics.form.tableCellPadY,
+  },
+  gridTableActionCell: {
+    width: metrics.form.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridTableHeaderText: {
+    fontSize: metrics.label.fontSize,
+    fontWeight: metrics.label.fontWeight,
+    color: colors.text.secondary,
+  },
+  /** A field inside a table cell: the cell owns the spacing, so the field must not add its own. */
+  gridTableCellField: {
+    marginBottom: 0,
+  },
+
   button: {
     minHeight: metrics.form.buttonHeight,
     borderRadius: metrics.form.buttonRadius,

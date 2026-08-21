@@ -18,14 +18,34 @@ console.error = (...args: unknown[]) => {
   reportError(...args);
 };
 
+export interface ScrollCall {
+  x?: number;
+  y?: number;
+  animated?: boolean;
+}
+
+/**
+ * Every programmatic scroll the tree has asked for, in order. Cleared by each {@link render}.
+ *
+ * Shared by all the scrollers rather than held per node, because `createNodeMock` is called
+ * afresh on every access — the object a `ref` captured and the one `testInstance.instance`
+ * returns are different objects, so anything recorded on the mock itself is unreadable from a
+ * test. Nothing in the renderer scrolls except on purpose, so one list stays unambiguous.
+ */
+export const scrollCalls: ScrollCall[] = [];
+
 /**
  * Stand-ins for the native handles a `ref` on a host component would give.
  *
- * Only `measureLayout` is modelled, because only `scrollToFirstError` needs one. Each mock
- * reports a y offset derived from a counter, so "the field highest on the screen" is a
- * meaningful question in a tree that has no geometry.
+ * Two are modelled, both because a scroll depends on them. `measureLayout` on a `View` is what
+ * `scrollToFirstError` reads, and each mock reports a y offset derived from a counter so that
+ * "the field highest on the screen" is a meaningful question in a tree with no geometry.
+ * `scrollTo` on a `ScrollView` is what a table-mode data grid calls to reveal an errored column.
  */
 function nodeMock(element: ReactElement & { type: unknown }): unknown {
+  if (element.type === 'ScrollView') {
+    return { scrollTo: (options: ScrollCall) => scrollCalls.push(options) };
+  }
   if (element.type !== 'View') return null;
   const y = (nodeMock.next += 100);
   return {
@@ -39,6 +59,7 @@ nodeMock.next = 0;
 export function render(element: ReactElement): ReactTestRenderer {
   let renderer: ReactTestRenderer | undefined;
   nodeMock.next = 0;
+  scrollCalls.length = 0;
   act(() => {
     renderer = TestRenderer.create(element, { createNodeMock: nodeMock });
   });

@@ -108,6 +108,11 @@ const defaultMetrics: FormioMetrics = {
     rowPadding: 12,
     rowRadius: 6,
     chipRadius: 4,
+    // Roughly a five-character number plus its padding. Two columns fill a phone, three overflow
+    // it slightly, and a wide table scrolls rather than shrinking past legibility.
+    tableMinColumnWidth: 128,
+    tableCellPadX: 8,
+    tableCellPadY: 8,
   },
   banner: { radius: 6, padding: 12, gap: 6, fontSize: 13, titleFontWeight: '600' },
 };

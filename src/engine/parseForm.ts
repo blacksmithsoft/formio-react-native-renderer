@@ -167,6 +167,7 @@ function readGridConfig(component: JsonObject, base: string): GridConfig {
     initEmpty: component.initEmpty === true || base === 'editgrid',
     addLabel: asString(component.addAnother) || 'Add Another',
     removeLabel: asString(component.removeRow) || 'Remove',
+    displayAsTable: component.displayAsTable === true,
   };
 }
 

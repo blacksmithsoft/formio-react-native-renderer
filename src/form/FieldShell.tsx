@@ -1,7 +1,15 @@
 // Copyright 2026 BlackSmithSoft B.V.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useRef, type ComponentRef, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  type ComponentRef,
+  type ReactNode,
+} from 'react';
 import { Text, View } from 'react-native';
 import type { FormComponent } from '../engine/types';
 import { useFormioRender } from './context';
@@ -18,8 +26,19 @@ import { useFormStyles } from './formStyles';
 
 /** Types that draw their own label beside the control, exactly as the web renderer does. */
 function isSelfLabelled(component: FormComponent): boolean {
-  return component.base === 'checkbox';
+  // Hosts restyle schema-disabled `custom_textfield`s as a label/value row, so FieldShell
+  // must not draw a second stacked label on top of that layout.
+  return (
+    component.base === 'checkbox' ||
+    (component.type === 'custom_textfield' && component.field.disabled)
+  );
 }
+
+/**
+ * Set inside a data grid drawn as a table. A cell is already a box in a bordered row, so the
+ * field's own bottom gap would show up as an uneven gutter under one column and not the next.
+ */
+export const GridTableCellContext = createContext(false);
 
 export interface FieldShellProps {
   component: FormComponent;
@@ -31,6 +50,7 @@ export interface FieldShellProps {
 export function FieldShell({ component, path, errors, children }: FieldShellProps) {
   const styles = useFormStyles();
   const { registerField } = useFormioRender();
+  const inTableCell = useContext(GridTableCellContext);
   const viewRef = useRef<ComponentRef<typeof View> | null>(null);
 
   const measure = useCallback(
@@ -96,7 +116,7 @@ export function FieldShell({ component, path, errors, children }: FieldShellProp
   }
 
   return (
-    <View ref={viewRef} style={styles.field}>
+    <View ref={viewRef} style={inTableCell ? styles.gridTableCellField : styles.field}>
       {label}
       <View style={label ? styles.controlSpacing : undefined}>{children}</View>
       {footer}

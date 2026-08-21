@@ -50,6 +50,7 @@ export { noopTelemetry } from './engine/telemetry';
 export { FormioRenderer, SubmitBar } from './form/FormioRenderer';
 export { COMPONENT_REGISTRY, describeCoverage, lookupControl } from './form/registry';
 export { FormioRenderProvider, useFormioRender } from './form/context';
+export { TextControl } from './form/controls/TextControl';
 
 /* ── Layer 3: the shells ───────────────────────────────────────────────────────────────────── */
 

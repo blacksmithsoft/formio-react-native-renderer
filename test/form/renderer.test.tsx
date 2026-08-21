@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { COMPONENT_REGISTRY, describeCoverage, lookupControl } from '../../src/form/registry';
 import type { FormComponent } from '../../src/engine/types';
-import { styleOf } from '../support/render';
+import { hostNodes, styleOf } from '../support/render';
 import { mount } from './support';
 
 /** Layer 2 — the editable renderer. docs/FORMS.md §6 and §8. */
@@ -331,6 +331,100 @@ describe('data grid', () => {
     view.type(0, 'filled');
     expect(view.run((h) => h.submit())).toBeNull();
     expect(view.texts().filter((text) => text === 'qty is required')).toHaveLength(1);
+  });
+});
+
+describe('data grid as a table', () => {
+  const tableSchema = (extra: Record<string, unknown> = {}) => ({
+    components: [
+      {
+        type: 'datagrid',
+        key: 'lines',
+        label: 'Quantities Table',
+        input: true,
+        displayAsTable: true,
+        components: [textfield('qty'), textfield('length')],
+        ...extra,
+      },
+    ],
+  });
+
+  /** Every column's rendered width: the header cells and the body cells alike. */
+  const columnWidths = (view: ReturnType<typeof mount>): number[] =>
+    hostNodes(view.renderer, 'View')
+      .map((node) => styleOf(node))
+      .filter((style) => typeof style.width === 'number' && style.paddingHorizontal !== undefined)
+      .map((style) => style.width as number);
+
+  it('labels the columns once in a header instead of once per row', () => {
+    const view = mount(tableSchema());
+    view.press('Add Another');
+
+    expect(view.inputs()).toHaveLength(4);
+    expect(view.texts().filter((text) => text === 'qty')).toHaveLength(1);
+    expect(view.texts().filter((text) => text === 'length')).toHaveLength(1);
+    // The per-row "1 of 2" heading belongs to the card layout, not to a table.
+    expect(view.texts()).not.toContain('1 of 2');
+  });
+
+  it('still writes each row to its own path', () => {
+    const view = mount(tableSchema());
+    view.press('Add Another');
+    view.type(0, '3');
+    view.type(3, '12');
+
+    expect(view.handle().getData()).toEqual({
+      lines: [{ qty: '3' }, { length: '12' }],
+    });
+  });
+
+  it('removes the row its button sits on', () => {
+    const view = mount(tableSchema());
+    view.press('Add Another');
+    view.type(0, 'first');
+    view.type(2, 'second');
+    view.press('Remove 1');
+
+    expect(view.handle().getData()).toEqual({ lines: [{ qty: 'second' }] });
+  });
+
+  it('shares the measured width between the columns when there is room for them', () => {
+    const view = mount(tableSchema());
+    view.measureTable(600);
+
+    // (600 - the 44dp remove column) / 2, on the header cell and the body cell of each column.
+    expect(columnWidths(view)).toEqual([278, 278, 278, 278]);
+  });
+
+  it('stays a table at any width, scrolling rather than falling back to cards', () => {
+    const view = mount(tableSchema());
+    view.measureTable(200);
+
+    // Two columns at the 128dp floor plus the remove column overflow 200dp. The table keeps its
+    // shape and lets the scroller deal with it — the card layout's row heading never appears.
+    expect(columnWidths(view)).toEqual([128, 128, 128, 128]);
+    expect(view.texts()).not.toContain('1 of 1');
+    expect(view.texts().filter((text) => text === 'qty')).toHaveLength(1);
+  });
+
+  it('scrolls the errored column into view when a submit fails', () => {
+    const view = mount(
+      tableSchema({ components: [textfield('qty'), textfield('length', { validate: { required: true } })] })
+    );
+    view.measureTable(200);
+    expect(view.scrolls()).toEqual([]);
+
+    expect(view.run((h) => h.submit())).toBeNull();
+    // The second column starts one clamped column-width in, and the vertical scroll alone would
+    // have left it off the right edge.
+    expect(view.scrolls()).toEqual([{ x: 128, animated: true }]);
+  });
+
+  it('leaves a grid without the flag as a stack of cards at any width', () => {
+    const view = mount(tableSchema({ displayAsTable: false }));
+    view.measure(900);
+
+    expect(view.texts()).toContain('1 of 1');
   });
 });
 

@@ -113,6 +113,12 @@ export interface GridConfig {
   initEmpty: boolean;
   addLabel: string;
   removeLabel: string;
+  /**
+   * The author asked for a real table — one column per child, labels in a header — rather than
+   * the stack of cards a grid otherwise becomes. Honoured at every width: columns share the
+   * space until they would drop below `tableMinColumnWidth`, then the table scrolls sideways.
+   */
+  displayAsTable: boolean;
 }
 
 /** `file` and `signature` capture limits, read by the host's capture adapter. */

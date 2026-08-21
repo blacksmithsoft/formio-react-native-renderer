@@ -120,6 +120,15 @@ export interface FormioMetrics {
     rowPadding: number;
     rowRadius: number;
     chipRadius: number;
+    /**
+     * The floor on a `displayAsTable` column — docs/FORMS.md §8. Columns share the grid's width
+     * evenly until they would drop below this, at which point the table scrolls sideways instead
+     * of shrinking further. Set it low and a wide table stops scrolling and starts being
+     * unreadable; set it high and a two-column grid scrolls when it did not need to.
+     */
+    tableMinColumnWidth: number;
+    tableCellPadX: number;
+    tableCellPadY: number;
   };
   banner: {
     radius: number;

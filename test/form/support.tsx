@@ -7,7 +7,7 @@ import type { ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { FormioRenderer, type FormioRendererHandle } from '../../src/form/FormioRenderer';
 import type { ComponentOverrides, FormioAdapters } from '../../src/form/context';
 import type { FormioTelemetry } from '../../src/engine/telemetry';
-import { hostNodes, render } from '../support/render';
+import { hostNodes, render, scrollCalls, type ScrollCall } from '../support/render';
 
 /** Mounting the editable renderer and poking at it, kept out of the tests themselves. */
 
@@ -30,6 +30,10 @@ export interface Mounted {
   type: (index: number, text: string) => void;
   press: (matcher: string | number) => void;
   measure: (width: number) => void;
+  /** Report a width to a table-mode data grid, which sizes its columns against its own frame. */
+  measureTable: (width: number) => void;
+  /** Every scroll the tree has asked for, in order — a table revealing its errored column. */
+  scrolls: () => ScrollCall[];
 }
 
 export function mount(
@@ -63,6 +67,15 @@ export function mount(
 
   const inputs = () => hostNodes(renderer, 'TextInput');
   const pressables = () => hostNodes(renderer, 'Pressable');
+
+  /** A table-mode grid is the only scroller that measures itself, which is what identifies it. */
+  const tableScroller = (): ReactTestInstance => {
+    const found = hostNodes(renderer, 'ScrollView').find(
+      (node) => typeof node.props.onLayout === 'function'
+    );
+    if (!found) throw new Error('no data grid drawn as a table');
+    return found;
+  };
 
   const texts = (): string[] =>
     hostNodes(renderer, 'Text').flatMap((node) => {
@@ -99,7 +112,10 @@ export function mount(
       const target =
         typeof matcher === 'number'
           ? targets[matcher]
-          : targets.find((node) => containsText(node, matcher));
+          : targets.find(
+              (node) =>
+                containsText(node, matcher) || node.props.accessibilityLabel === matcher
+            );
       if (!target) throw new Error(`no Pressable matching ${String(matcher)}`);
       act(() => {
         target.props.onPress();
@@ -114,6 +130,13 @@ export function mount(
         root.props.onLayout({ nativeEvent: { layout: { width, height: 0, x: 0, y: 0 } } });
       });
     },
+    measureTable: (width) => {
+      const node = tableScroller();
+      act(() => {
+        node.props.onLayout({ nativeEvent: { layout: { width, height: 0, x: 0, y: 0 } } });
+      });
+    },
+    scrolls: () => scrollCalls,
   };
 }
 
