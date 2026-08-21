@@ -160,6 +160,15 @@ describe('custom JavaScript', () => {
     expect(result.changes).toEqual([]);
   });
 
+  it('keeps compilable rowIndex JavaScript for the device engine', async () => {
+    const result = await run([
+      { type: 'number', key: 'sNo', input: true, calculateValue: 'value = rowIndex + 1;' },
+    ]);
+    expect(componentsOf(result.schema)[0]?.calculateValue).toBe('value = rowIndex + 1;');
+    expect(result.changes).toEqual([]);
+    expect(validateForm(parseForm(result.schema), {}).blocked).toBe(false);
+  });
+
   it('removes only the JavaScript-triggered logic rules', async () => {
     const result = await run([
       {

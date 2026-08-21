@@ -17,7 +17,8 @@
  * Pure. Imports nothing from React or React Native.
  */
 
-import { htmlBlocksHaveChrome, htmlToText, parseHtmlBlocks } from './htmlBlocks';
+import { htmlBlocksHaveChrome, htmlToText, parseHtmlBlocks, assignHtmlBindPaths } from './htmlBlocks';
+import { compileCalculateValue } from './calculateValue';
 import { baseFieldType } from '../parse/baseFieldType';
 import { asString, isObject, toPositiveInt, type JsonObject } from '../parse/json';
 import { toField } from '../parse/toField';
@@ -251,7 +252,8 @@ function customJsIssues(component: JsonObject): ComponentIssue[] {
   const validate = isObject(component.validate) ? component.validate : {};
   if (asString(validate.custom).trim()) found.push('validate.custom');
   if (typeof component.calculateValue === 'string' && component.calculateValue.trim()) {
-    found.push('calculateValue');
+    // Compilable shapes are not JavaScript we have to refuse — they become a structured rule.
+    if (!compileCalculateValue(component.calculateValue)) found.push('calculateValue');
   }
   if (typeof component.defaultValue === 'string' && asString(component.customDefaultValue)) {
     found.push('customDefaultValue');
@@ -361,10 +363,14 @@ function toTableRows(component: JsonObject): FormTableCell[][] {
 
 export { htmlToText } from './htmlBlocks';
 
-function displayHtml(role: ComponentRole, markup: string): { html?: string; htmlBlocks?: ReturnType<typeof parseHtmlBlocks> } {
+function displayHtml(
+  role: ComponentRole,
+  markup: string,
+  ownerKey: string
+): { html?: string; htmlBlocks?: ReturnType<typeof parseHtmlBlocks> } {
   if (role !== 'display' || !markup) return {};
   const html = htmlToText(markup) || undefined;
-  const blocks = parseHtmlBlocks(markup);
+  const blocks = assignHtmlBindPaths(parseHtmlBlocks(markup), ownerKey);
   return {
     html,
     htmlBlocks: htmlBlocksHaveChrome(blocks) ? blocks : undefined,
@@ -437,15 +443,21 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
     ? []
     : parseFormComponents(component.components);
 
+  const calculate = compileCalculateValue(component.calculateValue);
+  // A calculated field authored with `input: false` is still a value on the row — S.No and a
+  // checklist question must appear and must be stored — but it is not something the user types.
+  const authoredInput = component.input !== false;
+  const input = isDataRole(role) && !!key && (authoredInput || !!calculate);
+  const displayOnlyCalculate = !!calculate && !authoredInput;
+
   return {
     key,
     type,
     base,
     role,
     layout,
-    field: resolvedField,
-    // Form.io omits `input` on layout components and sets it false on display ones.
-    input: isDataRole(role) && component.input !== false && !!key,
+    field: displayOnlyCalculate ? { ...resolvedField, disabled: true } : resolvedField,
+    input,
     // Vise's builder writes mobileHidden independently of Form.io's cross-platform
     // hidden flag. Both retain their values/defaults while staying off the screen.
     hidden: component.hidden === true || component.mobileHidden === true || base === 'hidden',
@@ -456,13 +468,13 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
     // Form.io's default. `false` only when the author explicitly turned it off.
     clearOnHide: component.clearOnHide !== false,
     defaultValue: component.defaultValue,
-    calculate: isObject(component.calculateValue) ? component.calculateValue : undefined,
+    calculate,
     calculateOverride: component.allowCalculateOverride === true,
     children,
     columns: known?.layout === 'columns' ? toColumns(component) : undefined,
     tabs: known?.layout === 'tabs' ? toTabs(component) : undefined,
     tableRows: known?.layout === 'table' ? toTableRows(component) : undefined,
-    ...displayHtml(role, asString(component.html) || asString(component.content)),
+    ...displayHtml(role, asString(component.html) || asString(component.content), key),
     collapsible: component.collapsible === true,
     collapsed: component.collapsible === true && component.collapsed === true,
     select,
@@ -523,11 +535,17 @@ export function walkGridRow(
 
 function collectIssues(components: FormComponent[]): FormDefinition['issues'] {
   const issues: FormDefinition['issues'] = [];
-  walkComponents(components, (component, path) => {
-    for (const issue of component.issues) {
-      issues.push({ path: path || component.key, issue });
-    }
-  });
+  const scan = (list: FormComponent[], parentPath = ''): void => {
+    walkComponents(list, (component, path) => {
+      for (const issue of component.issues) {
+        issues.push({ path: path || component.key, issue });
+      }
+      // `walkComponents` stops at a grid because rows are data. The row *template* still has
+      // issues (unknown types, leftover JavaScript) that must be reported on the form.
+      if (component.role === 'grid') scan(component.children, path);
+    }, parentPath);
+  };
+  scan(components);
   return issues;
 }
 

@@ -107,6 +107,7 @@ export type {
   ValidationRules,
 } from './engine/types';
 export type { HtmlBlock } from './engine/htmlBlocks';
+export type { CalculatedRule } from './engine/calculateValue';
 
 export type { FormioFormInstance, UseFormioFormOptions } from './engine/useFormioForm';
 export type { FormErrors, SubmissionData, ValidationResult } from './engine/formState';

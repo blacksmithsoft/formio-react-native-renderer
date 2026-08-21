@@ -642,6 +642,45 @@ describe('layout', () => {
     expect(backgrounds).toContain('#F5821F');
     expect(backgrounds).toContain('#1E3A8A');
   });
+
+  it('draws an HTML signature table as native fields and writes their values', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'htmlelement',
+          key: 'signatureSection',
+          content: `
+            <table>
+              <tr><th></th><th>ATNM QCI</th></tr>
+              <tr>
+                <td>Name:</td>
+                <td><input name="data[qciName]" placeholder="Name" /></td>
+              </tr>
+            </table>
+          `,
+        },
+      ],
+    });
+    expect(view.texts()).toContain('ATNM QCI');
+    expect(view.inputs()).toHaveLength(1);
+    view.type(0, 'Sara');
+    expect(view.handle().getData()).toMatchObject({ qciName: 'Sara' });
+  });
+
+  it('writes a hidden key from an HTML radio that used a Form.io onclick', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'htmlelement',
+          key: 'yes',
+          content: `<input type="radio" name="q1_radio" onclick="Formio.getForm().submission.data.q1='yes'"/>`,
+        },
+        { type: 'hidden', key: 'q1' },
+      ],
+    });
+    view.press('yes');
+    expect(view.handle().getData()).toMatchObject({ q1: 'yes' });
+  });
 });
 
 describe('host overrides', () => {

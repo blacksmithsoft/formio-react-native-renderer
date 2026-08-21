@@ -472,6 +472,39 @@ export const useFormStyles = createStyles(({ colors, metrics }) => ({
     flex: 1,
     minWidth: 0,
   },
+  htmlTable: {
+    borderWidth: metrics.control.borderWidth,
+    borderColor: colors.border.default,
+    backgroundColor: colors.surface.card,
+    marginBottom: metrics.field.gap,
+  },
+  htmlTableRow: {
+    flexDirection: 'row',
+    borderTopWidth: metrics.control.borderWidth,
+    borderTopColor: colors.border.default,
+  },
+  htmlTableFirstRow: {
+    borderTopWidth: 0,
+  },
+  htmlTableCell: {
+    paddingHorizontal: metrics.form.tableCellPadX,
+    paddingVertical: metrics.form.tableCellPadY,
+    borderRightWidth: metrics.control.borderWidth,
+    borderRightColor: colors.border.default,
+    justifyContent: 'center',
+  },
+  htmlTableHeaderCell: {
+    backgroundColor: colors.surface.washAlt,
+  },
+  htmlFieldInput: {
+    marginBottom: 0,
+    minHeight: metrics.control.minHeight,
+  },
+  htmlRadio: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: metrics.form.touchTarget,
+  },
   hint: {
     fontSize: metrics.description.fontSize,
     color: colors.text.tertiary,

@@ -13,7 +13,7 @@
  * Pure. Imports nothing from React or React Native.
  */
 
-import { apply } from './jsonLogic';
+import { evaluateCalculate } from './calculateValue';
 import { getAtPath, hasAtPath, setAtPath, unsetAtPath } from './dataPaths';
 import { forEachInstance } from './traverse';
 import type { FormComponent, FormDefinition } from './types';
@@ -112,9 +112,10 @@ export function applyDefaults(form: FormDefinition, data: SubmissionData): Submi
 }
 
 /**
- * Recompute JSON Logic `calculateValue` components.
+ * Recompute calculated components.
  *
- * String (JavaScript) calculations never reach here — they are recorded as an issue at parse
+ * JSON Logic and the two compiled JavaScript shapes (`rowIndex + n`, a quoted list) are applied
+ * here. Unrecognised JavaScript never reaches this function — it is recorded as an issue at parse
  * time. `allowCalculateOverride` means the user's edit wins once they have made one, so the
  * caller passes the set of paths the user has touched.
  */
@@ -125,12 +126,12 @@ export function applyCalculations(
 ): SubmissionData {
   let next = data;
   forEachInstance(form.components, next, (instance) => {
-    const { component, path, scope, visible } = instance;
+    const { component, path, scope, visible, rowIndex } = instance;
     if (!component.calculate || !component.input || !path || !visible) return;
     if (component.calculateOverride && touched.has(path)) return;
 
     const context = scope.row ? { ...scope.root, ...scope.row } : scope.root;
-    const value = apply(component.calculate, context);
+    const value = evaluateCalculate(component.calculate, rowIndex, context);
     if (value === null || value === undefined) return;
     if (Object.is(getAtPath(next, path), value)) return;
     next = setAtPath(next, path, value);

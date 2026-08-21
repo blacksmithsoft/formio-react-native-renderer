@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { evaluateConditional } from '../engine/conditionals';
 import { joinPath } from '../engine/dataPaths';
 import type { HtmlBlock } from '../engine/htmlBlocks';
 import type { FormComponent } from '../engine/types';
+import { Mark } from '../render/controls/Mark';
 import { useFormioTheme } from '../theme/FormioThemeProvider';
 import { resolveFormColumnSpan } from './columnLayout';
 import { useFormioRender } from './context';
@@ -304,10 +305,11 @@ function TableNode({ component, path, row }: { component: FormComponent; path: s
 /**
  * `content`, `htmlelement` and `button`.
  *
- * Instructional copy is drawn as text — see `htmlToText`. HTML that carries an embedded image or
- * a coloured banner is drawn as native blocks instead, which is what keeps a letterhead visible
- * offline without a WebView. Buttons are not drawn: submission is the shell's job, and a schema
- * button that appeared to submit but did not would be worse than no button at all.
+ * Instructional copy is drawn as text — see `htmlToText`. HTML that carries an embedded image, a
+ * coloured banner, a table or a form control is drawn as native blocks instead, which is what
+ * keeps a letterhead and an HTML signature grid visible offline without a WebView. Buttons are
+ * not drawn: submission is the shell's job, and a schema button that appeared to submit but did
+ * not would be worse than no button at all.
  */
 function DisplayNode({ component }: { component: FormComponent }) {
   const styles = useFormStyles();
@@ -330,6 +332,7 @@ function DisplayNode({ component }: { component: FormComponent }) {
 
 function HtmlBlockView({ block }: { block: HtmlBlock }) {
   const styles = useFormStyles();
+  const { metrics } = useFormioTheme();
 
   if (block.kind === 'image' && block.imageUri) {
     return <Image source={{ uri: block.imageUri }} style={styles.htmlImage} resizeMode="contain" />;
@@ -357,6 +360,42 @@ function HtmlBlockView({ block }: { block: HtmlBlock }) {
     );
   }
 
+  if (block.kind === 'table' && block.rows) {
+    const spanOf = (cell: HtmlBlock): number => cell.colspan && cell.colspan > 0 ? cell.colspan : 1;
+    const columns = Math.max(1, ...block.rows.map((row) => row.reduce((sum, cell) => sum + spanOf(cell), 0)));
+    const colWidth = metrics.form.tableMinColumnWidth;
+    return (
+      <ScrollView horizontal nestedScrollEnabled>
+        <View style={[styles.htmlTable, { minWidth: colWidth * columns }]}>
+          {block.rows.map((row, rowIndex) => (
+            <View key={rowIndex} style={[styles.htmlTableRow, rowIndex === 0 && styles.htmlTableFirstRow]}>
+              {row.map((cell, cellIndex) => (
+                <View
+                  key={cellIndex}
+                  style={[
+                    styles.htmlTableCell,
+                    cell.header && styles.htmlTableHeaderCell,
+                    { width: colWidth * spanOf(cell) },
+                  ]}
+                >
+                  <HtmlBlockView block={cell} />
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    );
+  }
+
+  if (block.kind === 'field') {
+    return <HtmlField block={block} />;
+  }
+
+  if (block.kind === 'radio') {
+    return <HtmlRadio block={block} />;
+  }
+
   if (!block.text && !block.background) return null;
 
   const align = block.align ?? 'left';
@@ -364,10 +403,10 @@ function HtmlBlockView({ block }: { block: HtmlBlock }) {
   const text = (
     <Text
       style={[
-        block.kind === 'banner' ? styles.htmlBannerText : styles.contentText,
+        block.kind === 'banner' || block.header ? styles.htmlBannerText : styles.contentText,
         color ? { color } : null,
         { textAlign: align },
-        block.bold ? { fontWeight: '700' } : null,
+        block.bold || block.header ? { fontWeight: '700' } : null,
       ]}
     >
       {block.text}
@@ -388,4 +427,56 @@ function HtmlBlockView({ block }: { block: HtmlBlock }) {
   }
 
   return text;
+}
+
+function HtmlField({ block }: { block: HtmlBlock }) {
+  const styles = useFormStyles();
+  const { colors } = useFormioTheme();
+  const { form, readOnly } = useFormioRender();
+  const path = block.bindPath;
+  if (!path) return null;
+
+  const stored = form.getValue(path);
+  const value = stored === undefined || stored === null ? '' : String(stored);
+  const disabled = readOnly || form.readOnly;
+
+  return (
+    <TextInput
+      style={[styles.input, styles.htmlFieldInput, block.fieldType === 'textarea' && styles.inputMultiline]}
+      value={value}
+      editable={!disabled}
+      placeholder={block.placeholder || (block.fieldType === 'date' ? 'Date' : undefined)}
+      placeholderTextColor={colors.text.placeholder}
+      multiline={block.fieldType === 'textarea'}
+      onChangeText={(text) => form.setValue(path, text)}
+      onBlur={() => form.touch(path)}
+      accessibilityLabel={block.placeholder || path}
+    />
+  );
+}
+
+function HtmlRadio({ block }: { block: HtmlBlock }) {
+  const styles = useFormStyles();
+  const { form, readOnly } = useFormioRender();
+  const path = block.bindPath;
+  const option = block.radioValue ?? '';
+  const selected = path ? String(form.getValue(path) ?? '') === option : false;
+  const disabled = readOnly || form.readOnly || !path;
+
+  return (
+    <Pressable
+      style={styles.htmlRadio}
+      disabled={disabled}
+      onPress={() => {
+        if (!path) return;
+        form.setValue(path, selected ? '' : option);
+        form.touch(path);
+      }}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected, disabled }}
+      accessibilityLabel={option || path}
+    >
+      <Mark checked={selected} radio />
+    </Pressable>
+  );
 }

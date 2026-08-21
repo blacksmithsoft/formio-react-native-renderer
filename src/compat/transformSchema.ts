@@ -25,11 +25,12 @@
  * A transform that silently rewrites a form is a transform nobody can debug.
  */
 
+import { compileCalculateValue } from '../engine/calculateValue';
 import { baseFieldType } from '../parse/baseFieldType';
 import { COMPONENT_REGISTRY, type HostCapability } from '../form/registry';
 
 /** Bumped whenever the output for an unchanged input would differ. Cached schemas carry it. */
-export const TRANSFORM_VERSION = 1;
+export const TRANSFORM_VERSION = 2;
 
 type JsonObject = Record<string, unknown>;
 
@@ -258,8 +259,10 @@ function stripCustomJavaScript(
     }
   }
 
-  // A string here is JavaScript; an object is JSON Logic, which the engine evaluates natively.
-  if (isCode(component.calculateValue)) {
+  // A string here is JavaScript; an object is JSON Logic. The two shapes the device can compile
+  // (`rowIndex + n`, a quoted list) stay in the schema so the engine can honour them. The rest
+  // is stripped, because leaving it would block the whole form on the device.
+  if (isCode(component.calculateValue) && !compileCalculateValue(component.calculateValue)) {
     delete component.calculateValue;
     removed.push('calculateValue');
   }

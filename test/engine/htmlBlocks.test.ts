@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
-import { htmlBlocksHaveChrome, htmlToText, parseHtmlBlocks } from '../../src/engine/htmlBlocks';
+import { htmlBlocksHaveChrome, htmlToText, parseHtmlBlocks, assignHtmlBindPaths } from '../../src/engine/htmlBlocks';
 import { parseForm } from '../../src/engine/parseForm';
 
 describe('htmlToText', () => {
@@ -60,6 +60,38 @@ describe('parseHtmlBlocks', () => {
     const html = `<div style="margin-top:10px;font-size:12px;"><strong>Note:</strong> SE-Site Engineer</div>`;
     expect(htmlBlocksHaveChrome(parseHtmlBlocks(html))).toBe(false);
     expect(htmlToText(html)).toContain('Note:');
+  });
+
+  it('draws an HTML table with named inputs as native fields', () => {
+    const blocks = parseHtmlBlocks(`
+      <table>
+        <tr><th>Name</th><th>Date</th></tr>
+        <tr>
+          <td><input name="data[calibratedName]" placeholder="Name"></td>
+          <td><input type="date" name="data[calibratedDate]"></td>
+        </tr>
+      </table>
+    `);
+    expect(htmlBlocksHaveChrome(blocks)).toBe(true);
+    expect(blocks[0]?.kind).toBe('table');
+    const body = blocks[0]?.rows?.[1] ?? [];
+    expect(body.map((cell) => cell.bindPath)).toEqual(['calibratedName', 'calibratedDate']);
+    expect(body.map((cell) => cell.fieldType)).toEqual(['text', 'date']);
+  });
+
+  it('recovers a Form.io radio assignment without running the onclick', () => {
+    const blocks = parseHtmlBlocks(
+      `<input type="radio" name="q1_radio" onclick="Formio.getForm().submission.data.q1='yes'"/>`
+    );
+    expect(blocks).toEqual([{ kind: 'radio', bindPath: 'q1', radioValue: 'yes' }]);
+  });
+
+  it('assigns a stable path to an unnamed input under the owning key', () => {
+    const blocks = assignHtmlBindPaths(
+      parseHtmlBlocks(`<input type="text"><input type="text">`),
+      'readings'
+    );
+    expect(blocks.map((block) => block.bindPath)).toEqual(['readings__f1', 'readings__f2']);
   });
 });
 

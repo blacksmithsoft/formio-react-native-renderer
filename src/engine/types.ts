@@ -19,6 +19,7 @@
  */
 
 import type { SchemaField } from '../parse/types';
+import type { CalculatedRule } from './calculateValue';
 import type { HtmlBlock } from './htmlBlocks';
 
 /**
@@ -199,10 +200,11 @@ export interface FormComponent {
   clearOnHide: boolean;
   defaultValue?: unknown;
   /**
-   * A JSON Logic rule that derives this component's value from the rest of the submission.
-   * String (JavaScript) `calculateValue` is recorded as an issue instead — never evaluated.
+   * A compiled calculation. JSON Logic is stored as `{ kind: 'json' }`. The two JavaScript
+   * shapes we can honour without `eval` — `rowIndex + n` and a quoted list indexed by row —
+   * are compiled at parse time. Unrecognised JavaScript is an issue instead, never evaluated.
    */
-  calculate?: unknown;
+  calculate?: CalculatedRule;
   /** Recalculate even after the user has edited the field (Form.io `allowCalculateOverride`). */
   calculateOverride: boolean;
 

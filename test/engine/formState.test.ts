@@ -192,6 +192,48 @@ describe('reconcile', () => {
     expect(reconcile(parsed, { qty: 3, total: 99 }, new Set(['total']))).toMatchObject({ total: 99 });
     expect(reconcile(parsed, { qty: 3, total: 99 }, new Set())).toMatchObject({ total: 6 });
   });
+
+  it('numbers datagrid rows from rowIndex without running JavaScript', () => {
+    const parsed = form([
+      datagrid(
+        'lines',
+        [textfield('sNo', { calculateValue: 'value = rowIndex + 1' })],
+        { defaultValue: [{}, {}, {}] }
+      ),
+    ]);
+    expect(parsed.issues).toEqual([]);
+    expect(reconcile(parsed, applyDefaults(parsed, {}))).toMatchObject({
+      lines: [{ sNo: 1 }, { sNo: 2 }, { sNo: 3 }],
+    });
+  });
+
+  it('fills a checklist question from a compiled quoted list', () => {
+    const parsed = form([
+      datagrid(
+        'checklist',
+        [
+          {
+            type: 'textfield',
+            key: 'description',
+            input: false,
+            calculateValue:
+              'var questions = ["Has anything changed?", "Has anyone joined?"]; value = questions[rowIndex] || \'\';',
+          },
+        ],
+        { defaultValue: [{}, {}] }
+      ),
+    ]);
+    expect(parsed.issues).toEqual([]);
+    const description = parsed.components[0]?.children[0];
+    expect(description?.input).toBe(true);
+    expect(description?.field.disabled).toBe(true);
+    expect(reconcile(parsed, applyDefaults(parsed, {}))).toMatchObject({
+      checklist: [
+        { description: 'Has anything changed?' },
+        { description: 'Has anyone joined?' },
+      ],
+    });
+  });
 });
 
 describe('validateForm', () => {
@@ -206,6 +248,14 @@ describe('validateForm', () => {
     const parsed = form([{ type: 'somethingNew', key: 'x', label: 'X', input: true }]);
     expect(validateForm(parsed, {}).blocked).toBe(false);
     expect(parsed.issues[0]?.issue.severity).toBe('warning');
+  });
+
+  it('still blocks unrecognised calculateValue JavaScript, including inside a grid', () => {
+    const parsed = form([
+      datagrid('lines', [textfield('total', { calculateValue: 'value = Math.random()' })]),
+    ]);
+    expect(validateForm(parsed, {}).blocked).toBe(true);
+    expect(parsed.issues[0]?.issue.code).toBe('custom-javascript');
   });
 
   it('does not validate a schema-hidden component', () => {

@@ -5,16 +5,19 @@
  * Authored HTML → native-drawable blocks — docs/FORMS.md §8.
  *
  * This is not an HTML engine. It keeps the pieces that can be drawn with `View`, `Text` and
- * `Image` without a WebView or a network: embedded images, a handful of banner styles, and a
- * flex row. Everything else is reduced to text, which is what {@link htmlToText} already did.
+ * `Image` without a WebView or a network: embedded images, a handful of banner styles, a
+ * flex row, an HTML `<table>`, and the form controls those tables actually contain. Everything
+ * else is reduced to text, which is what {@link htmlToText} already did.
  *
  * Pure. Imports nothing from React or React Native. Never throws.
  */
 
 export type HtmlAlign = 'left' | 'center' | 'right';
 
+export type HtmlFieldType = 'text' | 'textarea' | 'date';
+
 export interface HtmlBlock {
-  kind: 'text' | 'image' | 'banner' | 'row' | 'stack';
+  kind: 'text' | 'image' | 'banner' | 'row' | 'stack' | 'table' | 'field' | 'radio';
   text?: string;
   /** `data:image/…` or `file:` only — remote URLs are dropped so a cached form stays offline. */
   imageUri?: string;
@@ -23,6 +26,18 @@ export interface HtmlBlock {
   align?: HtmlAlign;
   bold?: boolean;
   children?: HtmlBlock[];
+  /** `table`: rows of cells. A cell is itself a block (usually a stack or a field). */
+  rows?: HtmlBlock[][];
+  colspan?: number;
+  header?: boolean;
+  fieldType?: HtmlFieldType;
+  /**
+   * Submission path this control writes. `data[calibratedName]` becomes `calibratedName`.
+   * Unnamed inputs get a stable path from {@link assignHtmlBindPaths}.
+   */
+  bindPath?: string;
+  placeholder?: string;
+  radioValue?: string;
 }
 
 const VOID = new Set([
@@ -98,17 +113,46 @@ export function htmlToText(html: string): string {
 
 /**
  * True when the blocks carry layout the flattened string would lose: an embedded image, a
- * coloured banner, or a row. Plain instructional copy still goes through {@link htmlToText}.
+ * coloured banner, a row, a table, or a control. Plain instructional copy still goes through
+ * {@link htmlToText}.
  */
 export function htmlBlocksHaveChrome(blocks: HtmlBlock[]): boolean {
   return blocks.some(isChrome);
 }
 
 function isChrome(block: HtmlBlock): boolean {
-  if (block.kind === 'image' || block.kind === 'row') return true;
+  if (block.kind === 'image' || block.kind === 'row' || block.kind === 'table') return true;
+  if (block.kind === 'field' || block.kind === 'radio') return true;
   if (block.kind === 'banner' && (block.background || block.color || block.align)) return true;
   if (block.kind === 'stack') return (block.children ?? []).some(isChrome);
   return false;
+}
+
+/**
+ * Give unnamed HTML inputs a stable path under the owning component key, so a thermometer
+ * reading table still submits even when the author left `name` off the `<input>`.
+ */
+export function assignHtmlBindPaths(blocks: HtmlBlock[], ownerKey: string): HtmlBlock[] {
+  let index = 0;
+  const nextPath = (): string => {
+    index += 1;
+    return ownerKey ? `${ownerKey}__f${index}` : `html__f${index}`;
+  };
+
+  const walk = (block: HtmlBlock): HtmlBlock => {
+    if ((block.kind === 'field' || block.kind === 'radio') && !block.bindPath) {
+      return { ...block, bindPath: nextPath() };
+    }
+    if (block.kind === 'table' && block.rows) {
+      return { ...block, rows: block.rows.map((row) => row.map(walk)) };
+    }
+    if (block.children) {
+      return { ...block, children: block.children.map(walk) };
+    }
+    return block;
+  };
+
+  return blocks.map(walk);
 }
 
 export function parseHtmlBlocks(html: string): HtmlBlock[] {
@@ -218,6 +262,16 @@ function convert(nodes: Ast[]): HtmlBlock[] {
       if (imageUri) out.push({ kind: 'image', imageUri });
       continue;
     }
+    if (tag === 'input' || tag === 'textarea') {
+      const control = htmlControl(tag, attrs);
+      if (control) out.push(control);
+      continue;
+    }
+    if (tag === 'table') {
+      const table = htmlTable(node);
+      if (table) out.push(table);
+      continue;
+    }
 
     const style = parseStyle(attrs.style);
     if (tag === 'strong' || tag === 'b' || /^h[1-6]$/.test(tag)) style.bold = true;
@@ -239,7 +293,7 @@ function convert(nodes: Ast[]): HtmlBlock[] {
     const styled = !!(style.background || style.color || style.align);
     const text = rest.map(blockText).filter(Boolean).join(' ').trim();
 
-    if (styled && rest.every((block) => block.kind === 'text' || block.kind === 'banner') && !rest.some((block) => block.kind === 'row' || block.kind === 'stack')) {
+    if (styled && rest.every((block) => block.kind === 'text' || block.kind === 'banner') && !rest.some((block) => block.kind === 'row' || block.kind === 'stack' || block.kind === 'table' || block.kind === 'field' || block.kind === 'radio')) {
       out.push(...images);
       if (text) {
         out.push({
@@ -270,11 +324,96 @@ function convert(nodes: Ast[]): HtmlBlock[] {
   return out;
 }
 
+function htmlControl(tag: string, attrs: Record<string, string>): HtmlBlock | undefined {
+  const type = (attrs.type || (tag === 'textarea' ? 'textarea' : 'text')).toLowerCase();
+  if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'image') return undefined;
+
+  if (type === 'radio') {
+    const assignment = parseFormioAssignment(attrs.onclick || attrs.onchange);
+    return {
+      kind: 'radio',
+      bindPath: assignment?.path ?? bindPathFromName(attrs.name),
+      radioValue: assignment?.value ?? attrs.value,
+    };
+  }
+
+  return {
+    kind: 'field',
+    fieldType: type === 'date' || type === 'datetime-local' || type === 'time' ? 'date' : tag === 'textarea' ? 'textarea' : 'text',
+    bindPath: bindPathFromName(attrs.name),
+    placeholder: attrs.placeholder,
+  };
+}
+
+/**
+ * The Tasnim checklists write answers with
+ * `onclick="Formio.getForm().submission.data.q1='yes'"`. That is JavaScript we will not run;
+ * the assignment target is data, and a regex is enough to recover it.
+ */
+function parseFormioAssignment(script: string | undefined): { path: string; value: string } | undefined {
+  if (!script) return undefined;
+  const match =
+    /submission\.data(?:\.([A-Za-z_]\w*)|\[['"]([A-Za-z_]\w*)['"]\])\s*=\s*['"]([^'"]*)['"]/.exec(
+      script
+    );
+  const path = match?.[1] || match?.[2];
+  if (!path) return undefined;
+  return { path, value: match?.[3] ?? '' };
+}
+
+function bindPathFromName(name: string | undefined): string | undefined {
+  if (!name) return undefined;
+  const matches = [...name.matchAll(/\[([^[\]]+)\]/g)].map((entry) => entry[1] ?? '');
+  if (matches.length > 0) {
+    const parts = matches.map((part) => part.replace(/^['"]|['"]$/g, '')).filter(Boolean);
+    return parts.length > 0 ? parts.join('.') : undefined;
+  }
+  if (/^[A-Za-z_]\w*$/.test(name) && !/_radio$/.test(name)) return name;
+  return undefined;
+}
+
+function htmlTable(node: El): HtmlBlock | undefined {
+  const rows: HtmlBlock[][] = [];
+  const visit = (ast: Ast): void => {
+    if (ast.kind !== 'el') return;
+    if (ast.tag === 'tr') {
+      const cells = ast.children
+        .filter((child): child is El => child.kind === 'el' && (child.tag === 'td' || child.tag === 'th'))
+        .map((cell) => htmlCell(cell));
+      if (cells.length > 0) rows.push(cells);
+      return;
+    }
+    for (const child of ast.children) visit(child);
+  };
+  for (const child of node.children) visit(child);
+  return rows.length > 0 ? { kind: 'table', rows } : undefined;
+}
+
+function htmlCell(node: El): HtmlBlock {
+  const style = parseStyle(node.attrs.style);
+  const header = node.tag === 'th';
+  if (header) style.bold = true;
+  const inner = convert(node.children).map((block) => applyTypo(block, style));
+  const cell = asCell(inner);
+  const colspan = Number.parseInt(node.attrs.colspan ?? '', 10);
+  return {
+    ...cell,
+    header,
+    colspan: Number.isFinite(colspan) && colspan > 1 ? colspan : undefined,
+    align: cell.align ?? style.align ?? (header ? 'center' : undefined),
+    bold: cell.bold || style.bold,
+    background: cell.background ?? style.background,
+  };
+}
+
 function applyTypo(block: HtmlBlock, style: Style): HtmlBlock {
   if (block.kind === 'stack' || block.kind === 'row') {
     return { ...block, children: (block.children ?? []).map((child) => applyTypo(child, style)) };
   }
-  if (block.kind === 'image') return block;
+  if (block.kind === 'table' && block.rows) {
+    return { ...block, rows: block.rows.map((row) => row.map((cell) => applyTypo(cell, style))) };
+  }
+  if (block.kind === 'image' || block.kind === 'field' || block.kind === 'radio') return block;
   return {
     ...block,
     kind: block.kind === 'text' ? 'banner' : block.kind,
@@ -293,6 +432,8 @@ function asCell(blocks: HtmlBlock[]): HtmlBlock {
 
 function isEmpty(block: HtmlBlock): boolean {
   if (block.kind === 'image') return !block.imageUri;
+  if (block.kind === 'field' || block.kind === 'radio') return false;
+  if (block.kind === 'table') return !block.rows?.length;
   if (block.kind === 'row' || block.kind === 'stack') return (block.children ?? []).every(isEmpty);
   return !block.text && !block.background;
 }
@@ -312,6 +453,10 @@ function collapse(blocks: HtmlBlock[]): HtmlBlock[] {
     }
     if (block.kind === 'stack' || block.kind === 'row') {
       out.push({ ...block, children: collapse(block.children ?? []) });
+      continue;
+    }
+    if (block.kind === 'table' && block.rows) {
+      out.push({ ...block, rows: block.rows.map((row) => collapse(row)) });
       continue;
     }
     out.push({ ...block });
