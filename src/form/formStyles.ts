@@ -14,6 +14,13 @@ export const useFormStyles = createStyles(({ colors, metrics }) => ({
   field: {
     marginBottom: metrics.field.gap,
   },
+  /**
+   * Host InfoField-style rows already include their own 4px gap. Applying `field.gap` (16)
+   * on top of that stretches a compact label/value list into empty vertical space.
+   */
+  compactField: {
+    marginBottom: 0,
+  },
   leftLabelRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -440,6 +447,30 @@ export const useFormStyles = createStyles(({ colors, metrics }) => ({
     lineHeight: metrics.control.lineHeight,
     color: colors.text.primary,
     marginBottom: metrics.field.gap,
+  },
+  htmlBlock: {
+    marginBottom: metrics.field.gap,
+  },
+  htmlImage: {
+    width: '100%',
+    height: metrics.form.htmlImageHeight,
+  },
+  htmlBanner: {
+    paddingHorizontal: metrics.form.htmlBannerPadX,
+    paddingVertical: metrics.form.htmlBannerPadY,
+    justifyContent: 'center',
+  },
+  htmlBannerText: {
+    fontSize: metrics.control.fontSize,
+    lineHeight: metrics.control.lineHeight,
+  },
+  htmlRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  htmlRowCell: {
+    flex: 1,
+    minWidth: 0,
   },
   hint: {
     fontSize: metrics.description.fontSize,

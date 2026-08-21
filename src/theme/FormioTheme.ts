@@ -129,6 +129,10 @@ export interface FormioMetrics {
     tableMinColumnWidth: number;
     tableCellPadX: number;
     tableCellPadY: number;
+    /** Height of an embedded `data:` image drawn from an `htmlelement`. */
+    htmlImageHeight: number;
+    htmlBannerPadX: number;
+    htmlBannerPadY: number;
   };
   banner: {
     radius: number;

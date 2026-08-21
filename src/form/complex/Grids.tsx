@@ -17,17 +17,16 @@ import { useFormioTheme } from '../../theme/FormioThemeProvider';
 /**
  * `datagrid` and `editgrid` — docs/FORMS.md §7.
  *
- * The web draws both as tables. By default neither is here, for the reason in §8: a card per row
- * beats a squeezed table on a phone held outdoors in gloves. A data grid becomes a stack of
- * cards, one per row; an edit grid becomes a list of summaries you open one at a time, which is
- * what it already is conceptually and what suits a small screen best.
+ * A data grid is a table you type into, so it is drawn as one: a header of column labels, one
+ * row of controls, scrolling sideways once the columns hit `tableMinColumnWidth`. Cards are the
+ * opt-out (`displayAsTable: false`), not the default — a layout that silently becomes a different
+ * layout is one nobody can author against.
  *
- * A data grid the author marked `displayAsTable` is the exception, and it is honoured at every
- * width. Columns take an equal share of the space the grid actually has, down to a floor of
- * `tableMinColumnWidth`, and once they hit that floor the table scrolls sideways rather than
- * rearranging itself: a layout that silently becomes a different layout is one nobody can author
- * against, and the author asked for a table. The cost of the scroll is that a column can sit off
- * screen, so the table reveals its own errored column — see {@link firstErroredColumn}.
+ * An edit grid stays a list of summaries you open one at a time, which is what it already is
+ * conceptually and what suits a small screen best.
+ *
+ * The cost of the table scroll is that a column can sit off screen, so the table reveals its own
+ * errored column — see {@link firstErroredColumn}.
  *
  * Rows are addressed by index, and an index is only valid for the duration of one operation:
  * removing row 1 renumbers everything after it. Nothing in here holds an index across a change.
@@ -113,8 +112,8 @@ function useColumns(children: FormComponent[]): GridColumn[] {
  *
  * Read back out of the error keys rather than tracked alongside them, because the keys are the
  * only thing that knows which row and field a failure belongs to: `lines[2].qty`. An error under
- * a column that contributes no key of its own — a layout component wrapping the real field — is
- * skipped rather than guessed at, which costs a scroll, not a correct answer.
+ * a column that wraps the real field — a `columns` group of checkboxes — is still found, so a
+ * failed Yes/No cell scrolls into view rather than sitting off the right edge.
  */
 function firstErroredColumn(columns: GridColumn[], path: string, errors: FormErrors): number {
   let found = -1;
@@ -122,10 +121,18 @@ function firstErroredColumn(columns: GridColumn[], path: string, errors: FormErr
     if (messages.length === 0 || !key.startsWith(`${path}[`)) continue;
     const segment = /^\[\d+\]\.([^.[]+)/.exec(key.slice(path.length))?.[1];
     if (segment === undefined) continue;
-    const index = columns.findIndex((column) => column.header.key === segment);
+    const index = columns.findIndex((column) => columnOwnsKey(column.header, segment));
     if (index >= 0 && (found < 0 || index < found)) found = index;
   }
   return found;
+}
+
+function columnOwnsKey(component: FormComponent, key: string): boolean {
+  if (component.key === key) return true;
+  if (component.children.some((child) => columnOwnsKey(child, key))) return true;
+  return (component.columns ?? []).some((column) =>
+    column.children.some((child) => columnOwnsKey(child, key))
+  );
 }
 
 function GridTable({
@@ -251,10 +258,12 @@ export function DataGrid({ component, path }: { component: FormComponent; path: 
   const styles = useFormStyles();
   const { form, readOnly } = useFormioRender();
   const rows = rowsOf(form.data, path);
-  const editable = !readOnly && !form.readOnly && !component.field.disabled;
+  const cellsOpen = !readOnly && !form.readOnly && !component.field.disabled;
+  const allowAdd = cellsOpen && component.grid?.allowAdd !== false;
+  const allowRemove = cellsOpen && component.grid?.allowRemove !== false;
   const errors = form.errorsFor(path);
   const columns = useColumns(component.children);
-  const asTable = component.grid?.displayAsTable === true && columns.length > 0;
+  const asTable = component.grid?.displayAsTable !== false && columns.length > 0;
 
   return (
     <View style={styles.field}>
@@ -273,7 +282,7 @@ export function DataGrid({ component, path }: { component: FormComponent; path: 
             path={path}
             rows={rows}
             columns={columns}
-            editable={editable}
+            editable={allowRemove}
           />
         ) : (
           rows.map((row, index) => (
@@ -281,7 +290,7 @@ export function DataGrid({ component, path }: { component: FormComponent; path: 
               <RowHeader
                 title={`${index + 1} of ${rows.length}`}
                 removeLabel={component.grid?.removeLabel ?? 'Remove'}
-                onRemove={editable ? () => form.removeRow(path, index) : undefined}
+                onRemove={allowRemove ? () => form.removeRow(path, index) : undefined}
               />
               <NodeList
                 components={component.children}
@@ -294,7 +303,7 @@ export function DataGrid({ component, path }: { component: FormComponent; path: 
 
       {rows.length === 0 && <Text style={[styles.hint, styles.controlSpacing]}>No entries yet.</Text>}
 
-      {editable && (
+      {allowAdd && (
         <View style={[styles.buttonRow, styles.controlSpacing]}>
           <GridButton
             label={component.grid?.addLabel ?? 'Add Another'}

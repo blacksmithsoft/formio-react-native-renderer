@@ -26,12 +26,12 @@ import { useFormStyles } from './formStyles';
 
 /** Types that draw their own label beside the control, exactly as the web renderer does. */
 function isSelfLabelled(component: FormComponent): boolean {
-  // Hosts restyle schema-disabled `custom_textfield`s as a label/value row, so FieldShell
-  // must not draw a second stacked label on top of that layout.
-  return (
-    component.base === 'checkbox' ||
-    (component.type === 'custom_textfield' && component.field.disabled)
-  );
+  return component.base === 'checkbox' || isDisabledCustomTextfield(component);
+}
+
+/** Schema-disabled `custom_textfield`s are drawn as a compact InfoField row by the host. */
+function isDisabledCustomTextfield(component: FormComponent): boolean {
+  return component.type === 'custom_textfield' && component.field.disabled;
 }
 
 /**
@@ -115,8 +115,14 @@ export function FieldShell({ component, path, errors, children }: FieldShellProp
     );
   }
 
+  const fieldStyle = inTableCell
+    ? styles.gridTableCellField
+    : isDisabledCustomTextfield(component)
+      ? styles.compactField
+      : styles.field;
+
   return (
-    <View ref={viewRef} style={inTableCell ? styles.gridTableCellField : styles.field}>
+    <View ref={viewRef} style={fieldStyle}>
       {label}
       <View style={label ? styles.controlSpacing : undefined}>{children}</View>
       {footer}

@@ -113,6 +113,9 @@ const defaultMetrics: FormioMetrics = {
     tableMinColumnWidth: 128,
     tableCellPadX: 8,
     tableCellPadY: 8,
+    htmlImageHeight: 80,
+    htmlBannerPadX: 12,
+    htmlBannerPadY: 10,
   },
   banner: { radius: 6, padding: 12, gap: 6, fontSize: 13, titleFontWeight: '600' },
 };

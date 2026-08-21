@@ -19,6 +19,7 @@
  */
 
 import type { SchemaField } from '../parse/types';
+import type { HtmlBlock } from './htmlBlocks';
 
 /**
  * What a component does with submission data. This, not the raw type, is what the engine
@@ -113,10 +114,16 @@ export interface GridConfig {
   initEmpty: boolean;
   addLabel: string;
   removeLabel: string;
+  /** Hide the add-row control. Form.io `addAnother: false` or `disableAddingRemovingRows`. */
+  allowAdd: boolean;
+  /** Hide the per-row remove control. */
+  allowRemove: boolean;
   /**
-   * The author asked for a real table — one column per child, labels in a header — rather than
-   * the stack of cards a grid otherwise becomes. Honoured at every width: columns share the
-   * space until they would drop below `tableMinColumnWidth`, then the table scrolls sideways.
+   * Draw as a real table — one column per child, labels in a header. A `datagrid` defaults to
+   * this; an `editgrid` does not. `displayAsTable: false` keeps the card stack.
+   *
+   * Columns share the space until they would drop below `tableMinColumnWidth`, then the table
+   * scrolls sideways rather than rearranging itself.
    */
   displayAsTable: boolean;
 }
@@ -205,8 +212,13 @@ export interface FormComponent {
   tabs?: FormTab[];
   /** Rows of cells for `table`. Drawn stacked on mobile — docs/FORMS.md §8. */
   tableRows?: FormTableCell[][];
-  /** `content` / `htmlelement`: the authored markup, before HTML is reduced to text. */
+  /** `content` / `htmlelement`: the authored markup, reduced to text. */
   html?: string;
+  /**
+   * The same markup as native-drawable blocks — images, banners, rows — when the HTML carries
+   * more than instructional copy. Absent when {@link html} is enough.
+   */
+  htmlBlocks?: HtmlBlock[];
   /** `panel` / `fieldset`: start collapsed. */
   collapsible: boolean;
   collapsed: boolean;

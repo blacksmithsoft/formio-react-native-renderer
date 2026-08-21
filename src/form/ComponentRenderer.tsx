@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { evaluateConditional } from '../engine/conditionals';
 import { joinPath } from '../engine/dataPaths';
+import type { HtmlBlock } from '../engine/htmlBlocks';
 import type { FormComponent } from '../engine/types';
 import { useFormioTheme } from '../theme/FormioThemeProvider';
 import { resolveFormColumnSpan } from './columnLayout';
@@ -303,16 +304,88 @@ function TableNode({ component, path, row }: { component: FormComponent; path: s
 /**
  * `content`, `htmlelement` and `button`.
  *
- * Instructional copy is drawn as text — see `htmlToText` for what survives. Buttons are not
- * drawn: submission is the shell's job, and a schema button that appeared to submit but did not
- * would be worse than no button at all.
+ * Instructional copy is drawn as text — see `htmlToText`. HTML that carries an embedded image or
+ * a coloured banner is drawn as native blocks instead, which is what keeps a letterhead visible
+ * offline without a WebView. Buttons are not drawn: submission is the shell's job, and a schema
+ * button that appeared to submit but did not would be worse than no button at all.
  */
 function DisplayNode({ component }: { component: FormComponent }) {
   const styles = useFormStyles();
+  const blocks = component.htmlBlocks;
   return (
     <>
       <Notices issues={component.issues} componentKey={component.key} />
-      {!!component.html && <Text style={styles.contentText}>{component.html}</Text>}
+      {blocks && blocks.length > 0 ? (
+        <View style={styles.htmlBlock}>
+          {blocks.map((block, index) => (
+            <HtmlBlockView key={`${component.key}-${index}`} block={block} />
+          ))}
+        </View>
+      ) : (
+        !!component.html && <Text style={styles.contentText}>{component.html}</Text>
+      )}
     </>
   );
+}
+
+function HtmlBlockView({ block }: { block: HtmlBlock }) {
+  const styles = useFormStyles();
+
+  if (block.kind === 'image' && block.imageUri) {
+    return <Image source={{ uri: block.imageUri }} style={styles.htmlImage} resizeMode="contain" />;
+  }
+
+  if (block.kind === 'row') {
+    return (
+      <View style={[styles.htmlRow, block.background ? { backgroundColor: block.background } : null]}>
+        {(block.children ?? []).map((child, index) => (
+          <View key={index} style={styles.htmlRowCell}>
+            <HtmlBlockView block={child} />
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  if (block.kind === 'stack') {
+    return (
+      <View>
+        {(block.children ?? []).map((child, index) => (
+          <HtmlBlockView key={index} block={child} />
+        ))}
+      </View>
+    );
+  }
+
+  if (!block.text && !block.background) return null;
+
+  const align = block.align ?? 'left';
+  const color = block.color;
+  const text = (
+    <Text
+      style={[
+        block.kind === 'banner' ? styles.htmlBannerText : styles.contentText,
+        color ? { color } : null,
+        { textAlign: align },
+        block.bold ? { fontWeight: '700' } : null,
+      ]}
+    >
+      {block.text}
+    </Text>
+  );
+
+  if (block.kind === 'banner' || block.background) {
+    return (
+      <View
+        style={[
+          styles.htmlBanner,
+          block.background ? { backgroundColor: block.background } : null,
+        ]}
+      >
+        {!!block.text && text}
+      </View>
+    );
+  }
+
+  return text;
 }

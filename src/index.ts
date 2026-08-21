@@ -106,6 +106,7 @@ export type {
   SelectConfig,
   ValidationRules,
 } from './engine/types';
+export type { HtmlBlock } from './engine/htmlBlocks';
 
 export type { FormioFormInstance, UseFormioFormOptions } from './engine/useFormioForm';
 export type { FormErrors, SubmissionData, ValidationResult } from './engine/formState';

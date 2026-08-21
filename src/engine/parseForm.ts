@@ -17,6 +17,7 @@
  * Pure. Imports nothing from React or React Native.
  */
 
+import { htmlBlocksHaveChrome, htmlToText, parseHtmlBlocks } from './htmlBlocks';
 import { baseFieldType } from '../parse/baseFieldType';
 import { asString, isObject, toPositiveInt, type JsonObject } from '../parse/json';
 import { toField } from '../parse/toField';
@@ -160,14 +161,26 @@ function readSelectConfig(component: JsonObject, field: SchemaField): SelectConf
   };
 }
 
+function isFalse(value: unknown): boolean {
+  return value === false || value === 'false';
+}
+
 function readGridConfig(component: JsonObject, base: string): GridConfig {
+  // `editable: false` is not a Form.io flag, but Vise writes it on a checklist whose rows are
+  // authored in `defaultValue` and must not be added to or removed. `addAnother: false` is the
+  // builder's own way of hiding the add control while leaving existing rows editable.
+  const locked = component.disableAddingRemovingRows === true || isFalse(component.editable);
+  const allowAdd = !locked && !isFalse(component.addAnother);
   return {
     // A datagrid is a table you type into, so it opens with a row. An edit grid is a list you
     // add entries to, so it opens empty. Both are Form.io's own defaults.
     initEmpty: component.initEmpty === true || base === 'editgrid',
     addLabel: asString(component.addAnother) || 'Add Another',
     removeLabel: asString(component.removeRow) || 'Remove',
-    displayAsTable: component.displayAsTable === true,
+    allowAdd,
+    allowRemove: !locked,
+    // A data grid is a table. Cards are the opt-out (`displayAsTable: false`), not the default.
+    displayAsTable: base === 'datagrid' ? !isFalse(component.displayAsTable) : component.displayAsTable === true,
   };
 }
 
@@ -346,29 +359,16 @@ function toTableRows(component: JsonObject): FormTableCell[][] {
   );
 }
 
-/**
- * `content` and `htmlelement` hold authored markup. It is reduced to text here rather than in the
- * renderer so that both platforms agree on the result and neither needs an HTML parser.
- *
- * Block-level tags become line breaks, everything else is dropped, and the five XML entities are
- * decoded. Instructional copy survives; formatting does not. That is the honest trade: the
- * alternative is either a WebView or a sanitiser, and both are larger decisions than a paragraph
- * of help text justifies.
- */
-export function htmlToText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
-    .replace(/<li[^>]*>/gi, '\u2022 ')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&amp;/gi, '&')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+export { htmlToText } from './htmlBlocks';
+
+function displayHtml(role: ComponentRole, markup: string): { html?: string; htmlBlocks?: ReturnType<typeof parseHtmlBlocks> } {
+  if (role !== 'display' || !markup) return {};
+  const html = htmlToText(markup) || undefined;
+  const blocks = parseHtmlBlocks(markup);
+  return {
+    html,
+    htmlBlocks: htmlBlocksHaveChrome(blocks) ? blocks : undefined,
+  };
 }
 
 /** Roles that hold a value of their own and therefore contribute a key to the submission. */
@@ -462,7 +462,7 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
     columns: known?.layout === 'columns' ? toColumns(component) : undefined,
     tabs: known?.layout === 'tabs' ? toTabs(component) : undefined,
     tableRows: known?.layout === 'table' ? toTableRows(component) : undefined,
-    html: role === 'display' ? htmlToText(asString(component.html) || asString(component.content)) || undefined : undefined,
+    ...displayHtml(role, asString(component.html) || asString(component.content)),
     collapsible: component.collapsible === true,
     collapsed: component.collapsible === true && component.collapsed === true,
     select,

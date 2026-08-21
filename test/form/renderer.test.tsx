@@ -311,8 +311,46 @@ describe('data grid', () => {
     view.press('Add Another');
     view.type(0, 'first');
     view.type(1, 'second');
-    view.press('Remove');
+    view.press('Remove 1');
     expect(view.handle().getData()).toEqual({ lines: [{ qty: 'second' }] });
+  });
+
+  it('draws a datagrid as a table even without the flag', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'datagrid',
+          key: 'lines',
+          label: 'Lines',
+          input: true,
+          components: [textfield('qty'), textfield('length')],
+        },
+      ],
+    });
+    expect(view.texts()).not.toContain('1 of 1');
+    expect(view.texts().filter((text) => text === 'qty')).toHaveLength(1);
+  });
+
+  it('hides add and remove when the rows are locked', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'datagrid',
+          key: 'lines',
+          label: 'Lines',
+          input: true,
+          addAnother: false,
+          editable: false,
+          defaultValue: [{ qty: '1' }],
+          components: [textfield('qty')],
+        },
+      ],
+    });
+    expect(view.texts()).not.toContain('Add Another');
+    expect(view.pressables().some((node) => node.props.accessibilityLabel?.startsWith('Remove'))).toBe(
+      false
+    );
+    expect(view.inputs()).toHaveLength(1);
   });
 
   it('validates each row independently', () => {
@@ -572,6 +610,37 @@ describe('layout', () => {
       components: [{ type: 'content', key: 'note', html: '<p>Wear <b>gloves</b>.</p>' }],
     });
     expect(view.texts()).toContain('Wear gloves.');
+  });
+
+  it('draws an embedded letterhead without a WebView', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'htmlelement',
+          key: 'header',
+          content: `
+            <div style="display: flex;">
+              <div><img src="data:image/png;base64,abc" alt="logo"/></div>
+              <div>
+                <div style="background-color: #F5821F; color: white; text-align: center; font-weight: bold;">AL TASNIM</div>
+                <div style="background-color: #1E3A8A; color: white; text-align: center;">Inspection</div>
+              </div>
+            </div>
+          `,
+        },
+      ],
+    });
+
+    const images = hostNodes(view.renderer, 'Image');
+    expect(images).toHaveLength(1);
+    expect(images[0]?.props.source).toEqual({ uri: 'data:image/png;base64,abc' });
+    expect(view.texts()).toContain('AL TASNIM');
+    expect(view.texts()).toContain('Inspection');
+    const backgrounds = hostNodes(view.renderer, 'View')
+      .map((node) => styleOf(node).backgroundColor)
+      .filter(Boolean);
+    expect(backgrounds).toContain('#F5821F');
+    expect(backgrounds).toContain('#1E3A8A');
   });
 });
 
