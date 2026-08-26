@@ -31,6 +31,7 @@ import {
   type ComponentOverrides,
   type FieldRegistration,
   type FormioAdapters,
+  type FormScrollMetrics,
 } from './context';
 import { useFormStyles } from './formStyles';
 
@@ -87,6 +88,11 @@ export interface FormioRendererProps {
    * failed validation on a long form leaves the user looking at a screen with no visible error.
    */
   scrollRef?: { current: Scrollable | null };
+  /**
+   * Live host-scroll position, so a long data grid can mount only the rows on screen. A store
+   * rather than state: putting `y` on context would re-render every field on every frame.
+   */
+  scrollMetrics?: FormScrollMetrics;
   overrides?: ComponentOverrides;
   adapters?: FormioAdapters;
   /**
@@ -120,6 +126,7 @@ function FormioRendererImpl(props: FormioRendererProps, ref: Ref<FormioRendererH
     showSubmit = false,
     readOnly = false,
     scrollRef,
+    scrollMetrics,
     overrides = NO_OVERRIDES,
     adapters = NO_ADAPTERS,
     telemetry,
@@ -221,8 +228,10 @@ function FormioRendererImpl(props: FormioRendererProps, ref: Ref<FormioRendererH
       overrides,
       adapters,
       registerField,
+      scrollRef,
+      scrollMetrics,
     }),
-    [form, containerWidth, readOnly, overrides, adapters, registerField]
+    [form, containerWidth, readOnly, overrides, adapters, registerField, scrollRef, scrollMetrics]
   );
 
   const body = (

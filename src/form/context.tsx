@@ -132,6 +132,28 @@ export interface FieldRegistration {
   ) => void;
 }
 
+/**
+ * The host vertical scroller's current window. Published through a store, not through React
+ * state, so a scroll frame does not re-render the whole form — see `windowedRows.ts`.
+ */
+export interface FormScrollWindow {
+  /** Content offset of the host vertical scroller. */
+  y: number;
+  /** Visible height of the host vertical scroller. */
+  height: number;
+}
+
+export interface FormScrollMetrics {
+  subscribe: (onStoreChange: () => void) => () => void;
+  getSnapshot: () => FormScrollWindow;
+}
+
+/** Minimal handle so a grid can measure itself against the host scroll content. */
+export interface FormScrollable {
+  getInnerViewNode?: () => unknown;
+  getScrollableNode?: () => unknown;
+}
+
 export interface FormioRenderContextValue {
   form: FormioFormInstance;
   containerWidth: number | undefined;
@@ -143,6 +165,10 @@ export interface FormioRenderContextValue {
    * highest on the screen rather than the first key in an object.
    */
   registerField: (path: string, registration: FieldRegistration | null) => void;
+  /** The host's vertical scroller, when the renderer is embedded. */
+  scrollRef?: { current: FormScrollable | null };
+  /** Live scroll position, when the host wants long grids to window their rows. */
+  scrollMetrics?: FormScrollMetrics;
 }
 
 const MISSING = 'FormioRenderer context is missing. Render controls inside <FormioRenderer>.';

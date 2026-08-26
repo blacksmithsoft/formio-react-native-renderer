@@ -5,7 +5,7 @@ import { createRef, type ReactElement } from 'react';
 import { act } from 'react';
 import type { ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { FormioRenderer, type FormioRendererHandle } from '../../src/form/FormioRenderer';
-import type { ComponentOverrides, FormioAdapters } from '../../src/form/context';
+import type { ComponentOverrides, FormioAdapters, FormScrollMetrics } from '../../src/form/context';
 import type { FormioTelemetry } from '../../src/engine/telemetry';
 import { hostNodes, render, scrollCalls, type ScrollCall } from '../support/render';
 
@@ -43,6 +43,7 @@ export function mount(
     overrides?: ComponentOverrides;
     adapters?: FormioAdapters;
     telemetry?: FormioTelemetry;
+    scrollMetrics?: FormScrollMetrics;
     element?: (ref: ReturnType<typeof createRef<FormioRendererHandle>>) => ReactElement;
   } = {}
 ): Mounted {
@@ -56,6 +57,7 @@ export function mount(
         overrides={options.overrides}
         adapters={options.adapters}
         telemetry={options.telemetry}
+        scrollMetrics={options.scrollMetrics}
       />
     )
   );

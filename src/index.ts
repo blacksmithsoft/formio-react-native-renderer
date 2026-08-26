@@ -123,6 +123,9 @@ export type {
   FormioControlProps,
   FormioFileValue,
   FormioRenderContextValue,
+  FormScrollable,
+  FormScrollMetrics,
+  FormScrollWindow,
   FieldRegistration,
 } from './form/context';
 export type { ComponentEntry, HostCapability } from './form/registry';

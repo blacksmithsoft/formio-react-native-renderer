@@ -278,6 +278,17 @@ export const useFormStyles = createStyles(({ colors, metrics }) => ({
   gridTableCellField: {
     marginBottom: 0,
   },
+  /** Read-only table cell: plain text instead of a disabled TextInput. */
+  gridTableCellText: {
+    fontSize: metrics.control.fontSize,
+    lineHeight: metrics.control.lineHeight,
+    color: colors.text.primary,
+  },
+  plainValue: {
+    fontSize: metrics.control.fontSize,
+    lineHeight: metrics.control.lineHeight,
+    color: colors.text.primary,
+  },
 
   button: {
     minHeight: metrics.form.buttonHeight,

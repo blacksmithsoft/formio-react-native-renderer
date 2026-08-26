@@ -464,6 +464,42 @@ describe('data grid as a table', () => {
 
     expect(view.texts()).toContain('1 of 1');
   });
+
+  it('draws a locked table as plain text rather than disabled inputs', () => {
+    const view = mount(
+      tableSchema({
+        defaultValue: [{ qty: '4', length: 'a long note about this row' }],
+      }),
+      { readOnly: true }
+    );
+
+    expect(view.inputs()).toHaveLength(0);
+    expect(view.texts()).toContain('4');
+    expect(view.texts()).toContain('a long note about this row');
+  });
+
+  it('mounts only the on-screen rows of a long locked table', () => {
+    const snapshot = { y: 0, height: 160 };
+    const view = mount(
+      tableSchema({
+        defaultValue: Array.from({ length: 20 }, (_, index) => ({ qty: `r${index}` })),
+      }),
+      {
+        readOnly: true,
+        scrollMetrics: {
+          subscribe: () => () => undefined,
+          getSnapshot: () => snapshot,
+        },
+      }
+    );
+    view.measureTable(400);
+
+    const values = view.texts().filter((text) => /^r\d+$/.test(text));
+    expect(values.length).toBeGreaterThan(0);
+    expect(values.length).toBeLessThan(20);
+    expect(values).toContain('r0');
+    expect(values).not.toContain('r19');
+  });
 });
 
 describe('layout', () => {

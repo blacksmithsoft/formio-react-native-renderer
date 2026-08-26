@@ -1,18 +1,20 @@
 // Copyright 2026 BlackSmithSoft B.V.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View, type LayoutChangeEvent } from 'react-native';
+import { evaluateConditional } from '../../engine/conditionals';
 import { getAtPath, indexPath } from '../../engine/dataPaths';
 import type { FormErrors } from '../../engine/formState';
 import type { FormComponent } from '../../engine/types';
 import { formatFieldValue } from '../../render/formatFieldValue';
 import { ComponentRenderer, NodeList } from '../ComponentRenderer';
-import { useFormioRender } from '../context';
+import { useFormioRender, type FormScrollMetrics } from '../context';
 import { GridTableCellContext } from '../FieldShell';
 import { useFormStyles } from '../formStyles';
 import { Notices } from '../Notice';
 import { useFormioTheme } from '../../theme/FormioThemeProvider';
+import { useRowWindow } from '../windowedRows';
 
 /**
  * `datagrid` and `editgrid` — docs/FORMS.md §7.
@@ -135,6 +137,158 @@ function columnOwnsKey(component: FormComponent, key: string): boolean {
   );
 }
 
+/**
+ * Types whose stored value is a string (or a list of strings) we can print. File, signature and
+ * survey need their real control even when the form is locked — a filename is not the binary,
+ * and a survey is a table of its own.
+ */
+function isPlainValueCell(component: FormComponent): boolean {
+  if (component.role !== 'input') return false;
+  return component.base !== 'file' && component.base !== 'signature' && component.base !== 'survey';
+}
+
+function TableCell({
+  cell,
+  path,
+  row,
+  rowIndex,
+  locked,
+}: {
+  cell: FormComponent;
+  path: string;
+  row: Record<string, unknown>;
+  rowIndex: number;
+  locked: boolean;
+}) {
+  const styles = useFormStyles();
+  const { form } = useFormioRender();
+  const scope = { root: form.data, row };
+  if (!evaluateConditional(cell.conditional, scope)) return null;
+  if (locked && isPlainValueCell(cell)) {
+    return <Text style={styles.gridTableCellText}>{formatFieldValue(row[cell.key], cell.field)}</Text>;
+  }
+  return <ComponentRenderer component={cell} parentPath={indexPath(path, rowIndex)} row={row} />;
+}
+
+function ReadOnlyCardFields({
+  fields,
+  row,
+  parentPath,
+}: {
+  fields: FormComponent[];
+  row: Record<string, unknown>;
+  parentPath: string;
+}) {
+  const styles = useFormStyles();
+  const { form } = useFormioRender();
+  const scope = { root: form.data, row };
+  return (
+    <>
+      {fields.map((child, index) => {
+        if (child.hidden || !evaluateConditional(child.conditional, scope)) return null;
+        if (!isPlainValueCell(child)) {
+          return (
+            <ComponentRenderer
+              key={`${child.type}-${child.key}-${index}`}
+              component={child}
+              parentPath={parentPath}
+              row={row}
+            />
+          );
+        }
+        const text = formatFieldValue(row[child.key], child.field);
+        return (
+          <View key={`${child.type}-${child.key}-${index}`} style={styles.field}>
+            {!!child.field.label && <Text style={styles.label}>{child.field.label}</Text>}
+            <Text style={[styles.plainValue, child.field.label ? styles.controlSpacing : undefined]}>
+              {text}
+            </Text>
+          </View>
+        );
+      })}
+    </>
+  );
+}
+
+function measureNodeY(
+  node: {
+    measureLayout?: (
+      relativeTo: never,
+      onSuccess: (x: number, y: number) => void,
+      onFail: () => void
+    ) => void;
+  } | null,
+  relativeTo: unknown,
+  onY: (y: number) => void
+): void {
+  if (!node || !relativeTo || typeof node.measureLayout !== 'function') return;
+  try {
+    node.measureLayout(relativeTo as never, (_x, y) => onY(y), () => undefined);
+  } catch {
+    // A failed measure must not prevent the table from drawing.
+  }
+}
+
+function useGridOffset() {
+  const { scrollRef, scrollMetrics } = useFormioRender();
+  const bodyRef = useRef<View>(null);
+  const [tableOffsetY, setTableOffsetY] = useState(0);
+  const [offsetKnown, setOffsetKnown] = useState(!scrollRef);
+
+  const captureOffset = useCallback(() => {
+    const relativeTo =
+      scrollRef?.current?.getInnerViewNode?.() ?? scrollRef?.current?.getScrollableNode?.();
+    if (!relativeTo || !bodyRef.current) {
+      setOffsetKnown(true);
+      return;
+    }
+    measureNodeY(bodyRef.current, relativeTo, (y) => {
+      setTableOffsetY((current) => (Math.abs(current - y) < 1 ? current : y));
+      setOffsetKnown(true);
+    });
+  }, [scrollRef]);
+
+  return {
+    bodyRef,
+    tableOffsetY,
+    metrics: offsetKnown ? scrollMetrics : undefined,
+    onLayout: captureOffset,
+  };
+}
+
+function WindowedRowList({
+  count,
+  estimatedRowHeight,
+  tableOffsetY,
+  metrics,
+  renderRow,
+}: {
+  count: number;
+  estimatedRowHeight: number;
+  tableOffsetY: number;
+  metrics: FormScrollMetrics | undefined;
+  renderRow: (index: number, onLayout: (event: LayoutChangeEvent) => void) => ReactNode;
+}) {
+  const measuredHeights = useRef(new Map<number, number>());
+  const window = useRowWindow(count, tableOffsetY, estimatedRowHeight, measuredHeights, metrics);
+
+  return (
+    <>
+      {window.topSpacer > 0 ? <View style={{ height: window.topSpacer }} /> : null}
+      {Array.from({ length: window.end - window.start }, (_, offset) => {
+        const index = window.start + offset;
+        return renderRow(index, (event) => {
+          const height = event.nativeEvent.layout.height;
+          const previous = measuredHeights.current.get(index);
+          if (previous !== undefined && Math.abs(previous - height) < 1) return;
+          measuredHeights.current.set(index, height);
+        });
+      })}
+      {window.bottomSpacer > 0 ? <View style={{ height: window.bottomSpacer }} /> : null}
+    </>
+  );
+}
+
 function GridTable({
   component,
   path,
@@ -149,25 +303,49 @@ function GridTable({
   editable: boolean;
 }) {
   const styles = useFormStyles();
-  const { form } = useFormioRender();
+  const { form, readOnly, scrollRef, scrollMetrics } = useFormioRender();
   const { metrics } = useFormioTheme();
   const scroller = useRef<ScrollView | null>(null);
+  const bodyRef = useRef<View>(null);
   const [available, setAvailable] = useState<number | undefined>(undefined);
+  const [tableOffsetY, setTableOffsetY] = useState(0);
+  const [offsetKnown, setOffsetKnown] = useState(!scrollRef);
 
   const removeLabel = component.grid?.removeLabel ?? 'Remove';
   const actionWidth = editable ? metrics.form.touchTarget : 0;
+  const locked = readOnly || form.readOnly;
+  const estimatedRowHeight = locked
+    ? metrics.control.lineHeight + metrics.form.tableCellPadY * 2
+    : metrics.control.minHeight + metrics.form.tableCellPadY * 2;
+
+  const captureOffset = useCallback(() => {
+    const relativeTo =
+      scrollRef?.current?.getInnerViewNode?.() ?? scrollRef?.current?.getScrollableNode?.();
+    if (!relativeTo || !bodyRef.current) {
+      setOffsetKnown(true);
+      return;
+    }
+    measureNodeY(bodyRef.current, relativeTo, (y) => {
+      setTableOffsetY((current) => (Math.abs(current - y) < 1 ? current : y));
+      setOffsetKnown(true);
+    });
+  }, [scrollRef]);
 
   /*
    * The table measures itself rather than reading the form's container width. A grid nested in a
    * panel has the panel's padding less room than the form does, and sizing columns against the
    * outer number would overflow by exactly that padding on a layout that should have fit.
    */
-  const onLayout = useCallback((event: LayoutChangeEvent) => {
-    const { width } = event.nativeEvent.layout;
-    setAvailable((current) =>
-      current !== undefined && Math.abs(current - width) < 1 ? current : width
-    );
-  }, []);
+  const onLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const { width } = event.nativeEvent.layout;
+      setAvailable((current) =>
+        current !== undefined && Math.abs(current - width) < 1 ? current : width
+      );
+      captureOffset();
+    },
+    [captureOffset]
+  );
 
   // An equal share of the space, but never below the floor. Above it the columns fill the width
   // and nothing scrolls; at it they overflow and the scroller takes over.
@@ -222,35 +400,110 @@ function GridTable({
           {editable && <View style={styles.gridTableActionCell} />}
         </View>
 
-        <GridTableCellContext.Provider value>
-          {rows.map((row, rowIndex) => (
-            <View key={`${path}-${rowIndex}`} style={styles.gridTableRow}>
-              {columns.map(({ cell }, index) => (
-                <View key={`cell-${cell.key}-${index}`} style={cellStyle}>
-                  <ComponentRenderer
-                    component={cell}
-                    parentPath={indexPath(path, rowIndex)}
-                    row={row}
-                  />
-                </View>
-              ))}
-              {editable && (
-                <View style={styles.gridTableActionCell}>
-                  <Pressable
-                    onPress={() => form.removeRow(path, rowIndex)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${removeLabel} ${rowIndex + 1}`}
+        <View ref={bodyRef} onLayout={captureOffset}>
+          <GridTableCellContext.Provider value>
+            <WindowedRowList
+              count={rows.length}
+              estimatedRowHeight={estimatedRowHeight}
+              tableOffsetY={tableOffsetY}
+              metrics={offsetKnown ? scrollMetrics : undefined}
+              renderRow={(rowIndex, onRowLayout) => {
+                const row = rows[rowIndex];
+                if (!row) return null;
+                return (
+                  <View
+                    key={`${path}-${rowIndex}`}
+                    style={styles.gridTableRow}
+                    onLayout={onRowLayout}
                   >
-                    {/* A word per row would cost a column's worth of width on a phone. */}
-                    <Text style={styles.chipRemove}>✕</Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          ))}
-        </GridTableCellContext.Provider>
+                    {columns.map(({ cell }, index) => (
+                      <View key={`cell-${cell.key}-${index}`} style={cellStyle}>
+                        <TableCell
+                          cell={cell}
+                          path={path}
+                          row={row}
+                          rowIndex={rowIndex}
+                          locked={locked}
+                        />
+                      </View>
+                    ))}
+                    {editable && (
+                      <View style={styles.gridTableActionCell}>
+                        <Pressable
+                          onPress={() => form.removeRow(path, rowIndex)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${removeLabel} ${rowIndex + 1}`}
+                        >
+                          {/* A word per row would cost a column's worth of width on a phone. */}
+                          <Text style={styles.chipRemove}>✕</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                  </View>
+                );
+              }}
+            />
+          </GridTableCellContext.Provider>
+        </View>
       </View>
     </ScrollView>
+  );
+}
+
+function CardStack({
+  path,
+  rows,
+  fields,
+  allowRemove,
+  removeLabel,
+  locked,
+}: {
+  path: string;
+  rows: Record<string, unknown>[];
+  fields: FormComponent[];
+  allowRemove: boolean;
+  removeLabel: string;
+  locked: boolean;
+}) {
+  const styles = useFormStyles();
+  const { form } = useFormioRender();
+  const { metrics } = useFormioTheme();
+  const offset = useGridOffset();
+  const estimatedRowHeight = locked
+    ? metrics.control.lineHeight + metrics.form.rowPadding * 2
+    : metrics.control.minHeight * 2 + metrics.form.rowPadding * 2;
+
+  return (
+    <View ref={offset.bodyRef} onLayout={offset.onLayout}>
+      <WindowedRowList
+        count={rows.length}
+        estimatedRowHeight={estimatedRowHeight}
+        tableOffsetY={offset.tableOffsetY}
+        metrics={offset.metrics}
+        renderRow={(index, onRowLayout) => {
+          const row = rows[index];
+          if (!row) return null;
+          return (
+            <View
+              key={`${path}-${index}`}
+              style={[styles.row, styles.controlSpacing]}
+              onLayout={onRowLayout}
+            >
+              <RowHeader
+                title={`${index + 1} of ${rows.length}`}
+                removeLabel={removeLabel}
+                onRemove={allowRemove ? () => form.removeRow(path, index) : undefined}
+              />
+              {locked ? (
+                <ReadOnlyCardFields fields={fields} row={row} parentPath={indexPath(path, index)} />
+              ) : (
+                <NodeList components={fields} parentPath={indexPath(path, index)} row={row} />
+              )}
+            </View>
+          );
+        }}
+      />
+    </View>
   );
 }
 
@@ -285,20 +538,14 @@ export function DataGrid({ component, path }: { component: FormComponent; path: 
             editable={allowRemove}
           />
         ) : (
-          rows.map((row, index) => (
-            <View key={`${path}-${index}`} style={[styles.row, styles.controlSpacing]}>
-              <RowHeader
-                title={`${index + 1} of ${rows.length}`}
-                removeLabel={component.grid?.removeLabel ?? 'Remove'}
-                onRemove={allowRemove ? () => form.removeRow(path, index) : undefined}
-              />
-              <NodeList
-                components={component.children}
-                parentPath={indexPath(path, index)}
-                row={row}
-              />
-            </View>
-          ))
+          <CardStack
+            path={path}
+            rows={rows}
+            fields={component.children}
+            allowRemove={allowRemove}
+            removeLabel={component.grid?.removeLabel ?? 'Remove'}
+            locked={!cellsOpen}
+          />
         ))}
 
       {rows.length === 0 && <Text style={[styles.hint, styles.controlSpacing]}>No entries yet.</Text>}
@@ -332,6 +579,96 @@ export function DataGrid({ component, path }: { component: FormComponent; path: 
  * removal the index refers to a different row. Reopening is one tap; editing the wrong row
  * silently is not recoverable.
  */
+function EditGridRows({
+  component,
+  path,
+  rows,
+  open,
+  setOpen,
+  editable,
+}: {
+  component: FormComponent;
+  path: string;
+  rows: Record<string, unknown>[];
+  open: number | null;
+  setOpen: (index: number | null) => void;
+  editable: boolean;
+}) {
+  const styles = useFormStyles();
+  const { form } = useFormioRender();
+  const { metrics } = useFormioTheme();
+  const offset = useGridOffset();
+
+  return (
+    <View ref={offset.bodyRef} onLayout={offset.onLayout}>
+      <WindowedRowList
+        count={rows.length}
+        estimatedRowHeight={metrics.form.touchTarget + metrics.form.rowGap}
+        tableOffsetY={offset.tableOffsetY}
+        metrics={offset.metrics}
+        renderRow={(index, onRowLayout) => {
+          const row = rows[index];
+          if (!row) return null;
+          const isOpen = open === index;
+          const rowHasErrors = Object.keys(form.errors).some((key) =>
+            key.startsWith(`${indexPath(path, index)}.`)
+          );
+          return (
+            <View
+              key={`${path}-${index}`}
+              style={[styles.row, styles.controlSpacing]}
+              onLayout={onRowLayout}
+            >
+              <Pressable
+                style={styles.rowHeader}
+                onPress={() => setOpen(isOpen ? null : index)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: isOpen }}
+              >
+                <Text style={styles.rowTitle}>{summarise(component, row) || `${index + 1}`}</Text>
+                <View style={styles.buttonRow}>
+                  {form.showAllErrors && rowHasErrors && <View style={styles.tabErrorDot} />}
+                  <Text style={styles.chipRemove}>{isOpen ? 'Done' : 'Edit'}</Text>
+                </View>
+              </Pressable>
+
+              {isOpen && (
+                <View style={styles.controlSpacing}>
+                  {editable ? (
+                    <NodeList
+                      components={component.children}
+                      parentPath={indexPath(path, index)}
+                      row={row}
+                    />
+                  ) : (
+                    <ReadOnlyCardFields
+                      fields={component.children}
+                      row={row}
+                      parentPath={indexPath(path, index)}
+                    />
+                  )}
+                  {editable && (
+                    <View style={styles.buttonRow}>
+                      <GridButton
+                        label={component.grid?.removeLabel ?? 'Remove'}
+                        secondary
+                        onPress={() => {
+                          setOpen(null);
+                          form.removeRow(path, index);
+                        }}
+                      />
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          );
+        }}
+      />
+    </View>
+  );
+}
+
 export function EditGrid({ component, path }: { component: FormComponent; path: string }) {
   const styles = useFormStyles();
   const { form, readOnly } = useFormioRender();
@@ -351,46 +688,14 @@ export function EditGrid({ component, path }: { component: FormComponent; path: 
         </Text>
       )}
 
-      {rows.map((row, index) => {
-        const isOpen = open === index;
-        const rowHasErrors = Object.keys(form.errors).some((key) =>
-          key.startsWith(`${indexPath(path, index)}.`)
-        );
-        return (
-          <View key={`${path}-${index}`} style={[styles.row, styles.controlSpacing]}>
-            <Pressable
-              style={styles.rowHeader}
-              onPress={() => setOpen(isOpen ? null : index)}
-              accessibilityRole="button"
-              accessibilityState={{ expanded: isOpen }}
-            >
-              <Text style={styles.rowTitle}>{summarise(component, row) || `${index + 1}`}</Text>
-              <View style={styles.buttonRow}>
-                {form.showAllErrors && rowHasErrors && <View style={styles.tabErrorDot} />}
-                <Text style={styles.chipRemove}>{isOpen ? 'Done' : 'Edit'}</Text>
-              </View>
-            </Pressable>
-
-            {isOpen && (
-              <View style={styles.controlSpacing}>
-                <NodeList components={component.children} parentPath={indexPath(path, index)} row={row} />
-                {editable && (
-                  <View style={styles.buttonRow}>
-                    <GridButton
-                      label={component.grid?.removeLabel ?? 'Remove'}
-                      secondary
-                      onPress={() => {
-                        setOpen(null);
-                        form.removeRow(path, index);
-                      }}
-                    />
-                  </View>
-                )}
-              </View>
-            )}
-          </View>
-        );
-      })}
+      <EditGridRows
+        component={component}
+        path={path}
+        rows={rows}
+        open={open}
+        setOpen={setOpen}
+        editable={editable}
+      />
 
       {rows.length === 0 && <Text style={[styles.hint, styles.controlSpacing]}>No entries yet.</Text>}
 
