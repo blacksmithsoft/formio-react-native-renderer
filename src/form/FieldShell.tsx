@@ -64,8 +64,14 @@ export function FieldShell({ component, path, errors, children }: FieldShellProp
     (relativeTo: unknown, onSuccess: (y: number) => void, onFail: () => void) => {
       const node = viewRef.current;
       // Every path out of here is guarded. A measurement that fails must degrade to "do not
-      // scroll", never to a crash in the middle of a failed save.
-      if (!node || !relativeTo || typeof node.measureLayout !== 'function') {
+      // scroll", never to a crash in the middle of a failed save. A numeric Paper tag is
+      // rejected here: Fabric's measureLayout logs and never calls back if it is passed one.
+      if (
+        !node ||
+        typeof relativeTo !== 'object' ||
+        relativeTo === null ||
+        typeof node.measureLayout !== 'function'
+      ) {
         onFail();
         return;
       }

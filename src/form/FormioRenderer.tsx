@@ -32,6 +32,8 @@ import {
   type FieldRegistration,
   type FormioAdapters,
   type FormScrollMetrics,
+  type FormScrollable,
+  scrollContentHost,
 } from './context';
 import { useFormStyles } from './formStyles';
 
@@ -61,10 +63,8 @@ export interface FormioRendererHandle {
 }
 
 /** Minimal structural type for the scroll container, so hosts can pass any of the RN scrollers. */
-interface Scrollable {
+interface Scrollable extends FormScrollable {
   scrollTo?: (options: { y?: number; x?: number; animated?: boolean }) => void;
-  getInnerViewNode?: () => unknown;
-  getScrollableNode?: () => unknown;
 }
 
 export interface FormioRendererProps {
@@ -184,10 +184,9 @@ function FormioRendererImpl(props: FormioRendererProps, ref: Ref<FormioRendererH
     const target = scrollRef?.current ?? innerScroll.current;
     if (!registration || !target || typeof target.scrollTo !== 'function') return false;
 
-    // `measureLayout` wants the scroller's *content* view. React Native exposes it under two
-    // different names depending on the component, and neither is guaranteed, so all three
-    // possibilities are tried and a failure simply means no scroll.
-    const relativeTo = target.getInnerViewNode?.() ?? target.getScrollableNode?.() ?? target;
+    // Fabric wants a host instance (`getInnerViewRef`). Paper tags (`getInnerViewNode`) are
+    // skipped. The scroller itself is last so a host mock that only has `scrollTo` still works.
+    const relativeTo = scrollContentHost(target) ?? target;
 
     registration.measure(
       relativeTo,

@@ -164,6 +164,39 @@ describe('embedding in a parent that already scrolls', () => {
     // Without this, a failed save on a long embedded form looks like a button that does nothing.
     expect(scrollTo).toHaveBeenCalled();
   });
+
+  it('measures against getInnerViewRef when getInnerViewNode returns a numeric tag', () => {
+    const scrollTo = vi.fn();
+    const inner = {};
+    const scrollRef = {
+      current: {
+        scrollTo,
+        getInnerViewRef: () => inner,
+        getInnerViewNode: () => 1,
+        getScrollableNode: () => 2,
+      },
+    };
+    const ref = createRef<FormioRendererHandle>();
+
+    render(
+      <FormioRenderer
+        ref={ref}
+        scrollRef={scrollRef}
+        schema={{ components: [textfield('name', { validate: { required: true } })] }}
+      />
+    );
+
+    act(() => {
+      ref.current?.validate();
+    });
+    act(() => {
+      ref.current?.scrollToFirstError();
+    });
+
+    // Fabric rejects a numeric tag and never calls back. Using the host instance is what
+    // actually scrolls the field into view on RN 0.81.
+    expect(scrollTo).toHaveBeenCalled();
+  });
 });
 
 describe('splitting a wizard into pages', () => {

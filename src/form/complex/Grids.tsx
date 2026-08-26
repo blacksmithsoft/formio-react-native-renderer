@@ -9,7 +9,7 @@ import type { FormErrors } from '../../engine/formState';
 import type { FormComponent } from '../../engine/types';
 import { formatFieldValue } from '../../render/formatFieldValue';
 import { ComponentRenderer, NodeList } from '../ComponentRenderer';
-import { useFormioRender, type FormScrollMetrics } from '../context';
+import { scrollContentHost, useFormioRender, type FormScrollMetrics } from '../context';
 import { GridTableCellContext } from '../FieldShell';
 import { useFormStyles } from '../formStyles';
 import { Notices } from '../Notice';
@@ -219,13 +219,23 @@ function measureNodeY(
     ) => void;
   } | null,
   relativeTo: unknown,
-  onY: (y: number) => void
+  onY: (y: number) => void,
+  onFail: () => void
 ): void {
-  if (!node || !relativeTo || typeof node.measureLayout !== 'function') return;
+  // A number is a Paper native tag. Fabric logs and returns without calling either callback.
+  if (
+    !node ||
+    typeof relativeTo !== 'object' ||
+    relativeTo === null ||
+    typeof node.measureLayout !== 'function'
+  ) {
+    onFail();
+    return;
+  }
   try {
-    node.measureLayout(relativeTo as never, (_x, y) => onY(y), () => undefined);
+    node.measureLayout(relativeTo as never, (_x, y) => onY(y), onFail);
   } catch {
-    // A failed measure must not prevent the table from drawing.
+    onFail();
   }
 }
 
@@ -236,16 +246,20 @@ function useGridOffset() {
   const [offsetKnown, setOffsetKnown] = useState(!scrollRef);
 
   const captureOffset = useCallback(() => {
-    const relativeTo =
-      scrollRef?.current?.getInnerViewNode?.() ?? scrollRef?.current?.getScrollableNode?.();
+    const relativeTo = scrollContentHost(scrollRef?.current);
     if (!relativeTo || !bodyRef.current) {
       setOffsetKnown(true);
       return;
     }
-    measureNodeY(bodyRef.current, relativeTo, (y) => {
-      setTableOffsetY((current) => (Math.abs(current - y) < 1 ? current : y));
-      setOffsetKnown(true);
-    });
+    measureNodeY(
+      bodyRef.current,
+      relativeTo,
+      (y) => {
+        setTableOffsetY((current) => (Math.abs(current - y) < 1 ? current : y));
+        setOffsetKnown(true);
+      },
+      () => setOffsetKnown(true)
+    );
   }, [scrollRef]);
 
   return {
@@ -319,16 +333,20 @@ function GridTable({
     : metrics.control.minHeight + metrics.form.tableCellPadY * 2;
 
   const captureOffset = useCallback(() => {
-    const relativeTo =
-      scrollRef?.current?.getInnerViewNode?.() ?? scrollRef?.current?.getScrollableNode?.();
+    const relativeTo = scrollContentHost(scrollRef?.current);
     if (!relativeTo || !bodyRef.current) {
       setOffsetKnown(true);
       return;
     }
-    measureNodeY(bodyRef.current, relativeTo, (y) => {
-      setTableOffsetY((current) => (Math.abs(current - y) < 1 ? current : y));
-      setOffsetKnown(true);
-    });
+    measureNodeY(
+      bodyRef.current,
+      relativeTo,
+      (y) => {
+        setTableOffsetY((current) => (Math.abs(current - y) < 1 ? current : y));
+        setOffsetKnown(true);
+      },
+      () => setOffsetKnown(true)
+    );
   }, [scrollRef]);
 
   /*

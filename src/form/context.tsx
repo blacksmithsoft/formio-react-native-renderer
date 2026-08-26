@@ -148,10 +148,42 @@ export interface FormScrollMetrics {
   getSnapshot: () => FormScrollWindow;
 }
 
-/** Minimal handle so a grid can measure itself against the host scroll content. */
+/**
+ * Minimal handle so a grid can measure itself against the host scroll content.
+ *
+ * Fabric's `measureLayout` needs a host instance. The Paper-era `*Node` methods return a
+ * numeric native tag, which Fabric rejects with "ref.measureLayout must be called with a ref
+ * to a native component." Prefer {@link FormScrollable.getInnerViewRef}.
+ */
 export interface FormScrollable {
+  /** Fabric: the scroll content view, which is what `measureLayout` should run against. */
+  getInnerViewRef?: () => unknown;
+  /** Paper: numeric tag of the content view. Fabric cannot pass this to `measureLayout`. */
   getInnerViewNode?: () => unknown;
+  /** Paper: numeric tag of the scroller. Fabric cannot pass this to `measureLayout`. */
   getScrollableNode?: () => unknown;
+  getNativeScrollRef?: () => unknown;
+}
+
+/**
+ * The first host instance a Fabric `measureLayout` will accept.
+ *
+ * Numeric tags are skipped, not used: passing one logs a warning and never calls back, which
+ * would leave a data grid waiting forever for an offset it will not get.
+ */
+export function scrollContentHost(scroll: FormScrollable | null | undefined): object | null {
+  if (!scroll) return null;
+  for (const candidate of [
+    scroll.getInnerViewRef?.(),
+    scroll.getInnerViewNode?.(),
+    scroll.getScrollableNode?.(),
+    scroll.getNativeScrollRef?.(),
+  ]) {
+    if (candidate !== null && candidate !== undefined && typeof candidate === 'object') {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 export interface FormioRenderContextValue {
