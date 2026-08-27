@@ -106,7 +106,18 @@ export type {
   SelectConfig,
   ValidationRules,
 } from './engine/types';
-export type { HtmlBlock } from './engine/htmlBlocks';
+export type {
+  HtmlAlign,
+  HtmlAlignItems,
+  HtmlBlock,
+  HtmlBoxStyle,
+  HtmlEdgeColors,
+  HtmlEdges,
+  HtmlFieldType,
+  HtmlJustify,
+  HtmlSpan,
+  HtmlTextStyle,
+} from './engine/htmlBlocks';
 export type { CalculatedRule } from './engine/calculateValue';
 
 export type { FormioFormInstance, UseFormioFormOptions } from './engine/useFormioForm';

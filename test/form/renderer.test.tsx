@@ -679,6 +679,51 @@ describe('layout', () => {
     expect(backgrounds).toContain('#1E3A8A');
   });
 
+  it('sizes a letterhead the way the markup does: logo to its own width, banner to the rest', () => {
+    // A 100×80 PNG: only the header is read, and it is what turns `width: auto` into a ratio.
+    const header = Buffer.alloc(24);
+    header.writeUInt8(0x89, 0);
+    header.write('PNG', 1, 'ascii');
+    header.writeUInt32BE(100, 16);
+    header.writeUInt32BE(80, 20);
+    const logo = `data:image/png;base64,${header.toString('base64')}`;
+
+    const view = mount({
+      components: [
+        {
+          type: 'htmlelement',
+          key: 'header',
+          content:
+            `<div style="display: flex; align-items: stretch;">` +
+            `<div style="background-color: white; padding: 10px; display: flex; align-items: center; justify-content: center;">` +
+            `<img src="${logo}" style="height: 80px; width: auto;"/>>` +
+            `</div>` +
+            `<div style="flex: 1;">` +
+            `<div style="background-color: #F5821F; color: white; padding: 15px; text-align: center; font-size: 24px; font-weight: bold;">AL TASNIM ENTERPRISES LLC</div>` +
+            `</div></div>`,
+        },
+      ],
+    });
+
+    const image = hostNodes(view.renderer, 'Image')[0];
+    expect(styleOf(image!)).toMatchObject({ height: 80, aspectRatio: 1.25 });
+
+    const views = hostNodes(view.renderer, 'View').map(styleOf);
+    const logoCell = views.find((style) => style.backgroundColor === '#FFFFFF');
+    expect(logoCell).toMatchObject({ flexDirection: 'row', paddingTop: 10, paddingLeft: 10 });
+    // The cell asked for no width, so it must not be handed half the row.
+    expect(logoCell?.flexGrow).toBeUndefined();
+    expect(views.some((style) => style.flexGrow === 1)).toBe(true);
+
+    const banner = hostNodes(view.renderer, 'Text')
+      .map(styleOf)
+      .find((style) => style.fontSize === 24);
+    expect(banner).toMatchObject({ color: '#FFFFFF', fontWeight: '700', textAlign: 'center' });
+
+    // The stray `>` the author left after the image belongs on the image's line.
+    expect(view.texts()).toContain('>');
+  });
+
   it('draws an HTML signature table as native fields and writes their values', () => {
     const view = mount({
       components: [

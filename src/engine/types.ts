@@ -217,8 +217,8 @@ export interface FormComponent {
   /** `content` / `htmlelement`: the authored markup, reduced to text. */
   html?: string;
   /**
-   * The same markup as native-drawable blocks — images, banners, rows — when the HTML carries
-   * more than instructional copy. Absent when {@link html} is enough.
+   * The same markup as a native-drawable box tree — sized boxes, images, tables, controls — when
+   * the HTML carries layout that {@link html} would lose. Absent when the text is enough.
    */
   htmlBlocks?: HtmlBlock[];
   /** `panel` / `fieldset`: start collapsed. */

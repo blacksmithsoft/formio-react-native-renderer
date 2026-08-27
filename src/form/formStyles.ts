@@ -462,26 +462,14 @@ export const useFormStyles = createStyles(({ colors, metrics }) => ({
   htmlBlock: {
     marginBottom: metrics.field.gap,
   },
-  htmlImage: {
-    width: '100%',
-    height: metrics.form.htmlImageHeight,
-  },
-  htmlBanner: {
-    paddingHorizontal: metrics.form.htmlBannerPadX,
-    paddingVertical: metrics.form.htmlBannerPadY,
-    justifyContent: 'center',
-  },
-  htmlBannerText: {
+  /**
+   * What authored HTML inherits when it asks for nothing: the theme's body copy. Every other text
+   * property comes from the markup, so this sheet must not set one the author might have set.
+   */
+  htmlText: {
     fontSize: metrics.control.fontSize,
     lineHeight: metrics.control.lineHeight,
-  },
-  htmlRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  htmlRowCell: {
-    flex: 1,
-    minWidth: 0,
+    color: colors.text.primary,
   },
   htmlTable: {
     borderWidth: metrics.control.borderWidth,

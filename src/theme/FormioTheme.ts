@@ -129,10 +129,12 @@ export interface FormioMetrics {
     tableMinColumnWidth: number;
     tableCellPadX: number;
     tableCellPadY: number;
-    /** Height of an embedded `data:` image drawn from an `htmlelement`. */
+    /**
+     * Fallback height for an embedded image drawn from an `htmlelement`. Only reached when the
+     * markup sized nothing and the image's own header could not be read; a sized image keeps the
+     * size the author gave it.
+     */
     htmlImageHeight: number;
-    htmlBannerPadX: number;
-    htmlBannerPadY: number;
   };
   banner: {
     radius: number;
