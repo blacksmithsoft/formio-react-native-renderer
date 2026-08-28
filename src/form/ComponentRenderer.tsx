@@ -56,7 +56,7 @@ export function NodeList({
 }
 
 export function ComponentRenderer({ component, parentPath, row }: NodeProps) {
-  const { form } = useFormioRender();
+  const { form, readOnly, overrides } = useFormioRender();
 
   // Evaluated here rather than read from `form.visibleComponents`, because the renderer needs
   // the row-scoped answer for the specific row it is drawing, and the same pure function
@@ -74,12 +74,38 @@ export function ComponentRenderer({ component, parentPath, row }: NodeProps) {
       return <LayoutNode component={component} path={path} row={row} />;
     case 'container':
       return <ContainerNode component={component} path={path} row={row} />;
-    case 'grid':
+    case 'grid': {
+      // Grids skip the input registry, so host overrides have to be applied here. Key still
+      // beats type so one table can be swapped without forking every datagrid.
+      const GridOverride =
+        overrides.byKey?.[component.key] ??
+        overrides.byType?.[component.type] ??
+        overrides.byType?.[component.base];
+      if (GridOverride) {
+        const errors = form.errorsFor(path);
+        return (
+          <>
+            <Notices issues={component.issues} componentKey={component.key} />
+            <FieldShell component={component} path={path} errors={errors}>
+              <GridOverride
+                component={component}
+                path={path}
+                value={form.getValue(path)}
+                onChange={(value) => form.setValue(path, value)}
+                onBlur={() => form.touch(path)}
+                errors={errors}
+                readOnly={readOnly || form.readOnly}
+              />
+            </FieldShell>
+          </>
+        );
+      }
       return component.base === 'editgrid' ? (
         <EditGrid component={component} path={path} />
       ) : (
         <DataGrid component={component} path={path} />
       );
+    }
     case 'display':
       return <DisplayNode component={component} />;
     case 'input':
