@@ -140,11 +140,17 @@ function columnOwnsKey(component: FormComponent, key: string): boolean {
 /**
  * Types whose stored value is a string (or a list of strings) we can print. File, signature and
  * survey need their real control even when the form is locked — a filename is not the binary,
- * and a survey is a table of its own.
+ * and a survey is a table of its own. A checkbox is a box, not the words Yes/No: the web draws a
+ * tick, and COMPONENTS.md requires the same mark here.
  */
 function isPlainValueCell(component: FormComponent): boolean {
   if (component.role !== 'input') return false;
-  return component.base !== 'file' && component.base !== 'signature' && component.base !== 'survey';
+  return (
+    component.base !== 'file' &&
+    component.base !== 'signature' &&
+    component.base !== 'survey' &&
+    component.base !== 'checkbox'
+  );
 }
 
 function TableCell({

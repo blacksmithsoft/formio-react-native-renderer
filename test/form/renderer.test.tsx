@@ -478,6 +478,36 @@ describe('data grid as a table', () => {
     expect(view.texts()).toContain('a long note about this row');
   });
 
+  it('keeps a locked checkbox as a box instead of Yes/No text', () => {
+    const view = mount(
+      {
+        components: [
+          {
+            type: 'datagrid',
+            key: 'certificate',
+            label: 'Certificate',
+            input: true,
+            displayAsTable: true,
+            defaultValue: [
+              { done: false },
+              { done: true },
+            ],
+            components: [
+              { type: 'checkbox', key: 'done', label: ' ', hideLabel: true, input: true },
+            ],
+          },
+        ],
+      },
+      { readOnly: true }
+    );
+
+    expect(view.texts()).not.toContain('Yes');
+    expect(view.texts()).not.toContain('No');
+    expect(
+      view.renderer.root.findAllByProps({ accessibilityRole: 'checkbox' })
+    ).toHaveLength(2);
+  });
+
   it('mounts only the on-screen rows of a long locked table', () => {
     const snapshot = { y: 0, height: 160 };
     const view = mount(
