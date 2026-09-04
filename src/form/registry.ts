@@ -31,6 +31,7 @@ import { DateTimeControl, DayControl } from './controls/DateControls';
 import { FileControl, SignatureControl } from './controls/BinaryControls';
 import { SurveyControl } from './controls/SurveyControl';
 import { TagsControl } from './controls/TagsControl';
+import { LocationControl } from './controls/LocationControl';
 import { TextControl } from './controls/TextControl';
 import { UnsupportedControl } from './UnsupportedControl';
 
@@ -88,6 +89,7 @@ export const COMPONENT_REGISTRY: Record<string, ComponentEntry> = {
    * raised the warning that says so.
    */
   address: input(TextControl, 'location'),
+  location: input(LocationControl, 'location'),
   /** Holds a value, draws nothing. The renderer returns early before reaching this entry. */
   hidden: { kind: 'input', otaSafe: true },
 
@@ -102,9 +104,18 @@ export const COMPONENT_REGISTRY: Record<string, ComponentEntry> = {
   form: structural('container'),
   datagrid: structural('grid'),
   editgrid: structural('grid'),
+  datamap: structural('grid'),
+  tree: structural('grid'),
   content: structural('display'),
   htmlelement: structural('display'),
   button: structural('display'),
+  reviewpage: structural('display'),
+  assignable_panel: structural('layout'),
+  edittable: structural('grid'),
+  datatable: structural('grid'),
+  dynamicWizard: structural('grid'),
+  custom: input(TextControl),
+  resource: input(TextControl),
 };
 
 /**

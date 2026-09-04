@@ -53,6 +53,8 @@ export function initialValueFor(component: FormComponent): unknown {
   if (component.role === 'grid') {
     return component.grid?.initEmpty ? [] : [emptyRow(component)];
   }
+  if (component.role === 'datamap') return {};
+  if (component.role === 'tree') return emptyTreeNode(component);
   if (component.role === 'container') return {};
   if (component.multiple) return [];
 
@@ -79,7 +81,7 @@ export function emptyRow(grid: FormComponent): SubmissionData {
         const value = initialValueFor(child);
         if (value !== undefined) row[child.key] = value;
       }
-      if (child.role === 'grid') continue;
+      if (child.role === 'grid' || child.role === 'datamap' || child.role === 'tree') continue;
       fill(child.children);
       for (const column of child.columns ?? []) fill(column.children);
       for (const tab of child.tabs ?? []) fill(tab.children);
@@ -90,6 +92,11 @@ export function emptyRow(grid: FormComponent): SubmissionData {
   };
   fill(grid.children);
   return row;
+}
+
+/** A fresh Form.io tree node: field defaults under `data`, no children. */
+export function emptyTreeNode(tree: FormComponent): { data: SubmissionData; children: [] } {
+  return { data: emptyRow(tree), children: [] };
 }
 
 /**

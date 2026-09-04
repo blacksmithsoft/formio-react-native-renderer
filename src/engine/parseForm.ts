@@ -27,6 +27,7 @@ import type {
   ComponentIssue,
   ComponentRole,
   ConditionalRule,
+  DataMapConfig,
   FileConfig,
   FormColumn,
   FormComponent,
@@ -36,6 +37,7 @@ import type {
   GridConfig,
   LayoutKind,
   SelectConfig,
+  TreeConfig,
   ValidationRules,
 } from './types';
 import { indexPath, joinPath } from './dataPaths';
@@ -52,9 +54,12 @@ const ROLES: Record<string, { role: ComponentRole; layout?: LayoutKind }> = {
   form: { role: 'container' },
   datagrid: { role: 'grid' },
   editgrid: { role: 'grid' },
+  datamap: { role: 'datamap' },
+  tree: { role: 'tree' },
   content: { role: 'display' },
   htmlelement: { role: 'display' },
   button: { role: 'display' },
+  reviewpage: { role: 'display' },
 };
 
 /**
@@ -83,14 +88,8 @@ const KNOWN_INPUTS = new Set([
   'hidden',
   'survey',
   'address',
+  'location',
 ]);
-
-/**
- * Types banned at the schema layer — docs/FORMS.md §7. They should never reach a device, so one
- * arriving means the backend transform has a gap. It is reported loudly rather than guessed at:
- * both are recursive structures whose data cannot be captured by any primitive.
- */
-const BANNED = new Set(['tree', 'datamap']);
 
 /** Schema properties whose value is JavaScript. Present means the component is not supported. */
 const CUSTOM_JS_PROPERTIES = [
@@ -182,6 +181,41 @@ function readGridConfig(component: JsonObject, base: string): GridConfig {
     allowRemove: !locked,
     // A data grid is a table. Cards are the opt-out (`displayAsTable: false`), not the default.
     displayAsTable: base === 'datagrid' ? !isFalse(component.displayAsTable) : component.displayAsTable === true,
+  };
+}
+
+function firstNormalized(raw: unknown): FormComponent | undefined {
+  const list = parseFormComponents(Array.isArray(raw) ? raw : raw ? [raw] : []);
+  return list[0];
+}
+
+function readDataMapConfig(component: JsonObject): DataMapConfig {
+  const locked = component.disableAddingRemovingRows === true || isFalse(component.editable);
+  const valueComponent =
+    firstNormalized(component.valueComponent) ??
+    firstNormalized({ type: 'textfield', key: 'value', label: 'Value', input: true })!;
+  return {
+    keyLabel: asString(component.keyLabel) || 'Key',
+    addLabel: asString(component.addAnother) || 'Add Another',
+    allowAdd: !locked && !isFalse(component.addAnother),
+    allowRemove: !locked,
+    valueComponent,
+  };
+}
+
+function readReviewFields(component: JsonObject): string[] | undefined {
+  if (!Array.isArray(component.fields)) return undefined;
+  const keys = component.fields.filter((field): field is string => typeof field === 'string' && field.length > 0);
+  return keys.length > 0 ? keys : undefined;
+}
+
+function readTreeConfig(component: JsonObject): TreeConfig {
+  const locked = component.disableAddingRemovingRows === true || isFalse(component.editable);
+  return {
+    addLabel: asString(component.addAnother) || 'Add Child',
+    removeLabel: asString(component.removeRow) || 'Remove',
+    allowAdd: !locked && !isFalse(component.addAnother),
+    allowRemove: !locked,
   };
 }
 
@@ -296,7 +330,8 @@ interface Inference {
  *
  * Inference produces a warning, not an error: the component still works, so blocking the whole
  * submission over it would strand a worker who has no way to fix the schema from the field.
- * Anything inference cannot honestly cover is an error and does block — see {@link BANNED}.
+ * Nested structures we do understand (`datamap`, `tree`) have their own roles; they never
+ * reach inference.
  */
 function infer(component: JsonObject, type: string): Inference {
   const label = asString(component.label) || asString(component.key) || type;
@@ -379,7 +414,12 @@ function displayHtml(
 
 /** Roles that hold a value of their own and therefore contribute a key to the submission. */
 function isDataRole(role: ComponentRole): boolean {
-  return role === 'input' || role === 'container' || role === 'grid';
+  return role === 'input' || role === 'container' || role === 'grid' || role === 'datamap' || role === 'tree';
+}
+
+/** Roles whose children are a row/node template, not siblings in the same data scope. */
+function isTemplateRole(role: ComponentRole): boolean {
+  return role === 'grid' || role === 'datamap' || role === 'tree';
 }
 
 function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
@@ -403,13 +443,6 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
   if (known) {
     role = known.role;
     layout = known.layout;
-  } else if (BANNED.has(base)) {
-    role = 'display';
-    issues.push({
-      severity: 'error',
-      code: 'unknown-type',
-      message: `"${asString(component.label, key)}" is a ${type}. It nests data this app cannot capture and must be replaced in the form builder.`,
-    });
   } else if (KNOWN_INPUTS.has(base)) {
     role = 'input';
   } else {
@@ -480,6 +513,9 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
     select,
     file: base === 'file' || base === 'signature' ? readFileConfig(component) : undefined,
     grid: role === 'grid' ? readGridConfig(component, base) : undefined,
+    dataMap: role === 'datamap' ? readDataMapConfig(component) : undefined,
+    tree: role === 'tree' ? readTreeConfig(component) : undefined,
+    reviewFields: base === 'reviewpage' ? readReviewFields(component) : undefined,
     issues,
   };
 }
@@ -500,8 +536,8 @@ export function parseFormComponents(components: unknown): FormComponent[] {
 /**
  * Walk every component in a tree, in document order, with its absolute data path.
  *
- * Grid rows are not visited: a grid's children describe one row and are re-pathed per row by the
- * engine, which is the only place that knows how many rows there are.
+ * Grid rows, datamap entries and tree nodes are not visited: their children describe a template
+ * that only the engine can path against live data.
  */
 export function walkComponents(
   components: FormComponent[],
@@ -512,7 +548,7 @@ export function walkComponents(
     const path = component.input ? joinPath(parentPath, component.key) : parentPath;
     visit(component, path);
 
-    if (component.role === 'grid') continue;
+    if (isTemplateRole(component.role)) continue;
 
     walkComponents(component.children, visit, path);
     for (const column of component.columns ?? []) walkComponents(column.children, visit, path);
@@ -540,9 +576,11 @@ function collectIssues(components: FormComponent[]): FormDefinition['issues'] {
       for (const issue of component.issues) {
         issues.push({ path: path || component.key, issue });
       }
-      // `walkComponents` stops at a grid because rows are data. The row *template* still has
-      // issues (unknown types, leftover JavaScript) that must be reported on the form.
-      if (component.role === 'grid') scan(component.children, path);
+      // Templates still have issues (unknown types, leftover JavaScript) that must be reported.
+      if (component.role === 'grid' || component.role === 'tree') scan(component.children, path);
+      if (component.role === 'datamap' && component.dataMap) {
+        scan([component.dataMap.valueComponent], path);
+      }
     }, parentPath);
   };
   scan(components);

@@ -94,14 +94,13 @@ describe('assignable_panel', () => {
     expect(view.run((handle) => handle.submit())).not.toBeNull();
   });
 
-  it('is reported by the transform, and the branded primitives beside it are not', async () => {
+  it('is treated as a panel by the transform, and the branded primitives beside it are not flagged', async () => {
     const result = await transformSchema(schema);
 
-    // One warning, for the one type nobody has mapped. `custom_textfield` and `custom_number`
-    // are stock components behind a prefix and must not add noise — a Vise template is mostly
-    // branded primitives, and flagging every one of them buries the warning that matters.
-    expect(result.changes).toHaveLength(1);
-    expect(result.changes[0]).toMatchObject({ rule: 'unknown-type', type: 'assignable_panel' });
+    expect(result.changes).toEqual([]);
+    expect(result.schema).toMatchObject({
+      components: [{ type: 'assignable_panel', key: '_vAssignablePanel' }],
+    });
   });
 });
 

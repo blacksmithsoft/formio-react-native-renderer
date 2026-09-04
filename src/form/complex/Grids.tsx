@@ -40,7 +40,7 @@ function rowsOf(data: Record<string, unknown>, path: string): Record<string, unk
   return value.map((row) => (row !== null && typeof row === 'object' && !Array.isArray(row) ? (row as Record<string, unknown>) : {}));
 }
 
-function GridButton({
+export function GridButton({
   label,
   onPress,
   secondary,

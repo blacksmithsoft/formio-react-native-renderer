@@ -46,6 +46,8 @@ export function formatFieldValue(raw: unknown, field: SchemaField): string {
     // Address components store the resolved place alongside the geocoder payload.
     const formatted = record.formattedPlace ?? record.formatted_address;
     if (typeof formatted === 'string') return formatted;
+    if (typeof record.address === 'string' && record.address) return record.address;
+    if (record.lat !== undefined && record.lng !== undefined) return `${record.lat}, ${record.lng}`;
 
     // selectboxes: the map holds `false` for unchecked options, so the test must be strict.
     return Object.entries(record)

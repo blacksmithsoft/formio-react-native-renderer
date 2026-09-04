@@ -34,6 +34,7 @@ export {
   applyDefaults,
   collectErrors,
   emptyRow,
+  emptyTreeNode,
   initialValueFor,
   pathsIn,
   reconcile,
@@ -98,12 +99,14 @@ export type {
   ComponentIssue,
   ComponentRole,
   ConditionalRule,
+  DataMapConfig,
   FileConfig,
   FormComponent,
   FormDefinition,
   GridConfig,
   LayoutKind,
   SelectConfig,
+  TreeConfig,
   ValidationRules,
 } from './engine/types';
 export type {

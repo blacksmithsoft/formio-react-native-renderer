@@ -4,12 +4,15 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { evaluateConditional } from '../engine/conditionals';
+import { walkComponents } from '../engine/parseForm';
 import { joinPath } from '../engine/dataPaths';
 import type { FormComponent } from '../engine/types';
+import { formatFieldValue } from '../render/formatFieldValue';
 import { useFormioTheme } from '../theme/FormioThemeProvider';
 import { resolveFormColumnSpan } from './columnLayout';
 import { useFormioRender } from './context';
 import { EditGrid, DataGrid } from './complex/Grids';
+import { DataMap, Tree } from './complex/Nested';
 import { FieldShell } from './FieldShell';
 import { useFormStyles } from './formStyles';
 import { HtmlBlocks } from './HtmlContent';
@@ -104,6 +107,37 @@ export function ComponentRenderer({ component, parentPath, row }: NodeProps) {
         <EditGrid component={component} path={path} />
       ) : (
         <DataGrid component={component} path={path} />
+      );
+    }
+    case 'datamap':
+    case 'tree': {
+      const NestedOverride =
+        overrides.byKey?.[component.key] ??
+        overrides.byType?.[component.type] ??
+        overrides.byType?.[component.base];
+      if (NestedOverride) {
+        const errors = form.errorsFor(path);
+        return (
+          <>
+            <Notices issues={component.issues} componentKey={component.key} />
+            <FieldShell component={component} path={path} errors={errors}>
+              <NestedOverride
+                component={component}
+                path={path}
+                value={form.getValue(path)}
+                onChange={(value) => form.setValue(path, value)}
+                onBlur={() => form.touch(path)}
+                errors={errors}
+                readOnly={readOnly || form.readOnly}
+              />
+            </FieldShell>
+          </>
+        );
+      }
+      return component.role === 'tree' ? (
+        <Tree component={component} path={path} />
+      ) : (
+        <DataMap component={component} path={path} />
       );
     }
     case 'display':
@@ -343,7 +377,9 @@ function DisplayNode({ component }: { component: FormComponent }) {
   return (
     <>
       <Notices issues={component.issues} componentKey={component.key} />
-      {blocks && blocks.length > 0 ? (
+      {component.base === 'reviewpage' ? (
+        <ReviewPage component={component} />
+      ) : blocks && blocks.length > 0 ? (
         <View style={styles.htmlBlock}>
           <HtmlBlocks blocks={blocks} />
         </View>
@@ -351,6 +387,46 @@ function DisplayNode({ component }: { component: FormComponent }) {
         !!component.html && <Text style={styles.contentText}>{component.html}</Text>
       )}
     </>
+  );
+}
+
+/**
+ * `reviewpage` — a read-only summary of named fields.
+ *
+ * The web widget is a full review step. On a phone the useful part is the answers, so this
+ * lists each authored key with its current value. Missing keys are shown blank rather than
+ * dropped, so the worker can see what the page is supposed to cover.
+ */
+function ReviewPage({ component }: { component: FormComponent }) {
+  const styles = useFormStyles();
+  const { form } = useFormioRender();
+  const byKey = new Map<string, FormComponent>();
+  walkComponents(form.form.components, (entry) => {
+    if (entry.key) byKey.set(entry.key, entry);
+  });
+
+  const title = component.field.label;
+  return (
+    <View style={styles.field}>
+      {!!title && <Text style={styles.label}>{title}</Text>}
+      <View style={title ? styles.controlSpacing : undefined}>
+        {(component.reviewFields ?? []).map((key) => {
+          const target = byKey.get(key);
+          const label = target?.field.label || key;
+          const shown = target ? formatFieldValue(form.getValue(key), target.field) : formatFieldValue(form.getValue(key), {
+            ...component.field,
+            key,
+            label: key,
+          });
+          return (
+            <View key={key} style={styles.reviewRow}>
+              <Text style={styles.label}>{label}</Text>
+              <Text style={styles.reviewValue}>{shown || '—'}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 

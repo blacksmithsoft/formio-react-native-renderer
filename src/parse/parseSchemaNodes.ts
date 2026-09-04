@@ -24,12 +24,14 @@ const NON_FIELD_TYPES = new Set([
   'form',
   'datagrid',
   'editgrid',
+  'datamap',
   'tree',
   'button',
   'file',
   'content',
   'htmlelement',
   'hidden',
+  'reviewpage',
 ]);
 
 function toColumns(component: JsonObject, key: string): SchemaLayoutNode {
@@ -59,7 +61,8 @@ export function parseSchemaNodes(components: unknown): SchemaLayoutNode[] {
     const type = asString(component.type);
     const key = asString(component.key, type);
 
-    if (type === 'panel' || type === 'fieldset' || type === 'well') {
+    const base = baseFieldType(type);
+    if (base === 'panel' || base === 'fieldset' || base === 'well') {
       nodes.push({
         kind: 'panel',
         key,
@@ -82,7 +85,7 @@ export function parseSchemaNodes(components: unknown): SchemaLayoutNode[] {
       continue;
     }
 
-    if (NON_FIELD_TYPES.has(baseFieldType(type))) {
+    if (NON_FIELD_TYPES.has(base)) {
       nodes.push({ kind: 'unsupported', key, type, label: asString(component.label, key) });
       continue;
     }

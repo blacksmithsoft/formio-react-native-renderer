@@ -111,25 +111,36 @@ describe('signature', () => {
   });
 });
 
-describe('banned types', () => {
-  it('replaces a tree with a notice and keeps its value round-tripping', async () => {
-    const result = await run([{ type: 'tree', key: 'hierarchy', label: 'Hierarchy', input: true }]);
+describe('nested object types', () => {
+  it('leaves a tree in place so the device can edit it', async () => {
+    const result = await run([
+      {
+        type: 'tree',
+        key: 'hierarchy',
+        label: 'Hierarchy',
+        input: true,
+        components: [{ type: 'textfield', key: 'nodeName', input: true }],
+      },
+    ]);
     const output = componentsOf(result.schema);
 
-    expect(output.map((item) => item.type)).toEqual(['content', 'hidden']);
-    // The hidden field carries the original key, so saving on the phone cannot delete what was
-    // entered on the web.
-    expect(output[1]).toMatchObject({ key: 'hierarchy' });
-    expect(result.changes[0]).toMatchObject({ rule: 'banned-to-notice', severity: 'warning' });
+    expect(output.map((item) => item.type)).toEqual(['tree']);
+    expect(result.changes).toEqual([]);
+    expect(validateForm(parseForm(result.schema), {}).blocked).toBe(false);
   });
 
-  it('produces a form the renderer will actually submit', async () => {
-    const result = await run([{ type: 'datamap', key: 'meta', input: true }]);
-    const before = validateForm(parseForm({ components: [{ type: 'datamap', key: 'meta', input: true }] }), {});
-    const after = validateForm(parseForm(result.schema), {});
+  it('rewrites a datamap valueComponent and keeps the form submittable', async () => {
+    const result = await run([
+      {
+        type: 'datamap',
+        key: 'meta',
+        input: true,
+        valueComponent: { type: 'textfield', key: 'value', input: true },
+      },
+    ]);
 
-    expect(before.blocked).toBe(true);
-    expect(after.blocked).toBe(false);
+    expect(componentsOf(result.schema)[0]?.type).toBe('datamap');
+    expect(validateForm(parseForm(result.schema), {}).blocked).toBe(false);
   });
 });
 
@@ -295,7 +306,6 @@ describe('robustness', () => {
       'site',
       'site_lat',
       'site_lng',
-      'nested_notice',
       'nested',
     ]);
     expect(form.issues.filter((entry) => entry.issue.severity === 'error')).toEqual([]);

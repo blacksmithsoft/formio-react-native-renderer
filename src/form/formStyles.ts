@@ -508,4 +508,20 @@ export const useFormStyles = createStyles(({ colors, metrics }) => ({
     fontSize: metrics.description.fontSize,
     color: colors.text.tertiary,
   },
+  /** Indent a tree node's children so nesting is visible without a second scroller. */
+  nestedChildren: {
+    paddingStart: metrics.panel.padding,
+    marginTop: metrics.form.rowGap,
+  },
+  mapEntry: {
+    gap: metrics.label.gap,
+  },
+  reviewRow: {
+    marginBottom: metrics.form.rowGap,
+  },
+  reviewValue: {
+    marginTop: metrics.label.gap,
+    fontSize: metrics.control.fontSize,
+    color: colors.text.primary,
+  },
 }));

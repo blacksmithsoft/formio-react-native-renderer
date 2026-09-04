@@ -33,6 +33,10 @@ export type ComponentRole =
   | 'container'
   /** Scopes its children under its own key as an array of rows — `datagrid`, `editgrid`. */
   | 'grid'
+  /** A `Record<string, value>` the user grows by adding keys — `datamap`. */
+  | 'datamap'
+  /** A recursive `{ data, children }` node — `tree`. */
+  | 'tree'
   /** Groups children without scoping data — `panel`, `columns`, `tabs`, `table`, `fieldset`. */
   | 'layout'
   /** Draws something and holds no value — `content`, `htmlelement`, `button`. */
@@ -127,6 +131,23 @@ export interface GridConfig {
    * scrolls sideways rather than rearranging itself.
    */
   displayAsTable: boolean;
+}
+
+/** `datamap` — an object of user-named keys, each holding one `valueComponent` answer. */
+export interface DataMapConfig {
+  keyLabel: string;
+  addLabel: string;
+  allowAdd: boolean;
+  allowRemove: boolean;
+  valueComponent: FormComponent;
+}
+
+/** `tree` — one root node whose children are more nodes of the same shape. */
+export interface TreeConfig {
+  addLabel: string;
+  removeLabel: string;
+  allowAdd: boolean;
+  allowRemove: boolean;
 }
 
 /** `file` and `signature` capture limits, read by the host's capture adapter. */
@@ -228,6 +249,10 @@ export interface FormComponent {
   select?: SelectConfig;
   file?: FileConfig;
   grid?: GridConfig;
+  dataMap?: DataMapConfig;
+  tree?: TreeConfig;
+  /** `reviewpage`: keys of the fields to summarise. */
+  reviewFields?: string[];
 
   /** Non-empty when the component is degraded or unrenderable — see {@link ComponentIssue}. */
   issues: ComponentIssue[];

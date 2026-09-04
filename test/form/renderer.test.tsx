@@ -119,12 +119,21 @@ describe('unsupported components', () => {
     expect(view.run((h) => h.submit())).toBeNull();
   });
 
-  it('blocks and refuses to guess at a banned nesting type', () => {
+  it('draws a tree as a native node instead of blocking the form', () => {
     const view = mount({
-      components: [{ type: 'tree', key: 'hierarchy', label: 'Hierarchy', input: true }],
+      components: [
+        {
+          type: 'tree',
+          key: 'hierarchy',
+          label: 'Hierarchy',
+          input: true,
+          components: [{ type: 'textfield', key: 'nodeName', label: 'Node', input: true }],
+        },
+      ],
     });
-    expect(view.handle().getBlockingIssues()).toHaveLength(1);
-    expect(view.inputs()).toHaveLength(0);
+    expect(view.handle().getBlockingIssues()).toEqual([]);
+    expect(view.inputs().length).toBeGreaterThan(0);
+    expect(view.run((handle) => handle.submit())).not.toBeNull();
   });
 
   it('reports what it could not draw, so somebody learns about it', () => {
@@ -849,7 +858,18 @@ describe('registry', () => {
   });
 
   it('covers every Tier B type named in the spec', () => {
-    for (const type of ['datagrid', 'editgrid', 'file', 'signature', 'content', 'htmlelement', 'tabs', 'survey']) {
+    for (const type of [
+      'datagrid',
+      'editgrid',
+      'datamap',
+      'tree',
+      'file',
+      'signature',
+      'content',
+      'htmlelement',
+      'tabs',
+      'survey',
+    ]) {
       expect(COMPONENT_REGISTRY[type], type).toBeDefined();
     }
   });

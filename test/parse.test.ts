@@ -21,6 +21,17 @@ describe('baseFieldType', () => {
     expect(baseFieldType('my_custom_select')).toBe('my_custom_select');
     expect(baseFieldType('')).toBe('');
   });
+
+  it('aliases known contrib and Vise types onto stock roles', () => {
+    expect(baseFieldType('assignable_panel')).toBe('panel');
+    expect(baseFieldType('edittable')).toBe('datagrid');
+    expect(baseFieldType('datatable')).toBe('datagrid');
+    expect(baseFieldType('dynamicWizard')).toBe('editgrid');
+    expect(baseFieldType('custom')).toBe('textarea');
+    expect(baseFieldType('resource')).toBe('textfield');
+    // The JSON `custom` alias must not swallow branded primitives.
+    expect(baseFieldType('custom_textfield')).toBe('textfield');
+  });
 });
 
 describe('branded types resolve on the base type', () => {

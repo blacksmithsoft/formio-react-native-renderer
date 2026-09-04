@@ -14,6 +14,7 @@
 
 import { evaluateConditional, type ConditionalScope } from './conditionals';
 import { getAtPath, indexPath, joinPath } from './dataPaths';
+import { asRecord, asTreeNode } from './nestedData';
 import type { FormComponent } from './types';
 
 export interface ComponentInstance {
@@ -32,10 +33,30 @@ export interface ComponentInstance {
   rowIndex: number;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+function walkTreeNode(
+  tree: FormComponent,
+  nodePath: string,
+  nodeValue: unknown,
+  data: Record<string, unknown>,
+  visit: (instance: ComponentInstance) => void,
+  visible: boolean
+): void {
+  const node = asTreeNode(nodeValue);
+  forEachInstance(tree.children, data, visit, {
+    parentPath: joinPath(nodePath, 'data'),
+    row: node.data,
+    visible,
+  });
+  for (let index = 0; index < node.children.length; index += 1) {
+    walkTreeNode(
+      tree,
+      indexPath(joinPath(nodePath, 'children'), index),
+      node.children[index],
+      data,
+      visit,
+      visible
+    );
+  }
 }
 
 function childGroups(component: FormComponent): FormComponent[][] {
@@ -86,6 +107,25 @@ export function forEachInstance(
       continue;
     }
 
+    if (component.role === 'datamap') {
+      const valueComponent = component.dataMap?.valueComponent;
+      if (!valueComponent) continue;
+      const map = asRecord(getAtPath(data, path));
+      for (const key of Object.keys(map)) {
+        forEachInstance([{ ...valueComponent, key }], data, visit, {
+          parentPath: path,
+          row: map,
+          visible,
+        });
+      }
+      continue;
+    }
+
+    if (component.role === 'tree') {
+      walkTreeNode(component, path, getAtPath(data, path), data, visit, visible);
+      continue;
+    }
+
     for (const group of childGroups(component)) {
       forEachInstance(group, data, visit, {
         parentPath: path,
@@ -123,7 +163,7 @@ export function visibleComponents(
     out.push({
       ...component,
       children:
-        component.role === 'grid'
+        component.role === 'grid' || component.role === 'tree' || component.role === 'datamap'
           ? component.children
           : visibleComponents(component.children, data, childContext),
       columns: component.columns?.map((column) => ({

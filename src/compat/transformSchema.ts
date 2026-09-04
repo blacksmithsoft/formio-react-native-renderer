@@ -30,7 +30,7 @@ import { baseFieldType } from '../parse/baseFieldType';
 import { COMPONENT_REGISTRY, type HostCapability } from '../form/registry';
 
 /** Bumped whenever the output for an unchanged input would differ. Cached schemas carry it. */
-export const TRANSFORM_VERSION = 2;
+export const TRANSFORM_VERSION = 3;
 
 type JsonObject = Record<string, unknown>;
 
@@ -45,7 +45,6 @@ export interface TransformChange {
     | 'unresolved-select-options'
     | 'address-to-fields'
     | 'signature-to-file'
-    | 'banned-to-notice'
     | 'strip-custom-javascript'
     | 'unknown-type';
   detail: string;
@@ -109,12 +108,6 @@ export interface TransformResult {
  */
 const CUSTOM_JS_KEYS = ['customConditional', 'customDefaultValue', 'customValidation'] as const;
 
-/**
- * Types the renderer will not draw and inference must not guess at, because they carry nested or
- * structured data that a text box cannot round-trip — docs/FORMS.md §6, Tier C.
- */
-const BANNED_TYPES = new Set(['tree', 'datamap']);
-
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -165,8 +158,6 @@ export async function transformSchema(schema: unknown, options: TransformOptions
     const path = parentPath ? `${parentPath}.${keyOf(component)}` : keyOf(component);
 
     if (strip) stripCustomJavaScript(component, type, path, record);
-
-    if (BANNED_TYPES.has(base)) return bannedToNotice(component, type, path, record);
 
     if (base === 'address') return addressToFields(component, path, record);
 
@@ -228,6 +219,11 @@ export async function transformSchema(schema: unknown, options: TransformOptions
         rows.push(cells);
       }
       component.rows = rows;
+    }
+
+    if (isObject(component.valueComponent)) {
+      const rewritten = await rewriteList([component.valueComponent], parentPath);
+      if (rewritten[0]) component.valueComponent = rewritten[0];
     }
   };
 
@@ -414,40 +410,6 @@ function signatureToFile(
       filePattern: 'image/*',
       image: true,
     },
-  ];
-}
-
-/**
- * A banned type becomes a visible notice plus a hidden field holding its key.
- *
- * The notice tells the worker what is missing and where to do it instead. The hidden field is the
- * part that matters: it round-trips whatever value the record already had, so opening a form on
- * the phone and saving it does not quietly delete data entered on the web.
- */
-function bannedToNotice(
-  component: JsonObject,
-  type: string,
-  path: string,
-  record: (change: TransformChange) => void
-): JsonObject[] {
-  const key = keyOf(component);
-
-  record({
-    path,
-    type,
-    rule: 'banned-to-notice',
-    detail: `"${type}" is not supported on mobile. Replaced with a notice; the stored value is preserved.`,
-    severity: 'warning',
-  });
-
-  return [
-    {
-      type: 'content',
-      key: `${key}_notice`,
-      input: false,
-      html: `<p><strong>${labelOf(component)}</strong> can only be edited in the web app. Any existing entries are kept.</p>`,
-    },
-    { type: 'hidden', key, label: labelOf(component), input: true, tableView: false },
   ];
 }
 

@@ -72,7 +72,8 @@ export function requiredCapabilities(form: FormDefinition): HostCapability[] {
       if (capability) found.add(capability);
       // `walkComponents` stops at a grid, because its children describe a row template that only
       // the engine can path. A camera inside a grid row is still a camera, so descend by hand.
-      if (component.role === 'grid') scan(component.children);
+      if (component.role === 'grid' || component.role === 'tree') scan(component.children);
+      if (component.role === 'datamap' && component.dataMap) scan([component.dataMap.valueComponent]);
     });
   };
 

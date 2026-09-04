@@ -18,6 +18,7 @@
  * Pure. Imports nothing from React or React Native.
  */
 
+import { isEmptyTreeNode } from './nestedData';
 import type { FormComponent, ValidationRules } from './types';
 
 /**
@@ -195,22 +196,32 @@ function applyRules(
 export function validateComponent(component: FormComponent, value: unknown): string[] {
   const label = component.field.label || component.key;
   const rules = component.validate;
-  const empty = isEmptyValue(value);
+  const empty =
+    component.role === 'tree' ? isEmptyTreeNode(value) : isEmptyValue(value);
 
   if (rules.required && empty) {
     return [rules.customMessage ?? `${label} is required`];
   }
 
-  // On a grid, `minLength` and `maxLength` count rows rather than characters — Form.io reuses
-  // the same two properties for both, and reading them as text lengths would silently pass.
-  if (component.role === 'grid') {
-    const rows = Array.isArray(value) ? value.length : 0;
+  // On a grid or datamap, `minLength` and `maxLength` count entries rather than characters —
+  // Form.io reuses the same two properties for both, and reading them as text lengths would
+  // silently pass.
+  if (component.role === 'grid' || component.role === 'datamap') {
+    const rows =
+      component.role === 'datamap'
+        ? value !== null && typeof value === 'object' && !Array.isArray(value)
+          ? Object.keys(value as Record<string, unknown>).length
+          : 0
+        : Array.isArray(value)
+          ? value.length
+          : 0;
+    const unit = component.role === 'datamap' ? 'entries' : 'rows';
     const errors: string[] = [];
     if (rules.minLength !== undefined && rows < rules.minLength) {
-      errors.push(`${label} must have at least ${rules.minLength} rows.`);
+      errors.push(`${label} must have at least ${rules.minLength} ${unit}.`);
     }
     if (rules.maxLength !== undefined && rows > rules.maxLength) {
-      errors.push(`${label} must have no more than ${rules.maxLength} rows.`);
+      errors.push(`${label} must have no more than ${rules.maxLength} ${unit}.`);
     }
     return rules.customMessage && errors.length > 0 ? [rules.customMessage] : errors;
   }
