@@ -41,6 +41,7 @@ import type {
   ValidationRules,
 } from './types';
 import { indexPath, joinPath } from './dataPaths';
+import { requiresNetwork } from './networkFields';
 
 /** Types the engine understands, grouped by what they do with data. */
 const ROLES: Record<string, { role: ComponentRole; layout?: LayoutKind }> = {
@@ -445,6 +446,9 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
     layout = known.layout;
   } else if (KNOWN_INPUTS.has(base)) {
     role = 'input';
+  } else if (requiresNetwork(component)) {
+    // Omitted from the screen; do not infer a text box or raise a visible warning.
+    role = 'input';
   } else {
     const inferred = infer(component, type || 'component');
     role = inferred.role;
@@ -464,13 +468,9 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
     options === field.options && label === field.label ? field : { ...field, options, label };
 
   const select = base === 'select' ? readSelectConfig(component, resolvedField) : undefined;
-  if (select && select.dataSrc !== 'values' && !select.resolvedOffline) {
-    issues.push({
-      severity: 'warning',
-      code: 'unresolved-remote-options',
-      message: `"${resolvedField.label}" loads its choices from the server and they were not available offline. Type the value instead.`,
-    });
-  }
+  // Remote widgets are omitted from the screen rather than drawn empty. The key and any stored
+  // value stay on the submission so a save on the phone does not wipe what was entered on the web.
+  const remote = requiresNetwork(component, (resolvedField.options?.length ?? 0) > 0);
 
   const children = known?.layout === 'columns' || known?.layout === 'tabs' || known?.layout === 'table'
     ? []
@@ -493,7 +493,11 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
     input,
     // Vise's builder writes mobileHidden independently of Form.io's cross-platform
     // hidden flag. Both retain their values/defaults while staying off the screen.
-    hidden: component.hidden === true || component.mobileHidden === true || base === 'hidden',
+    hidden:
+      component.hidden === true ||
+      component.mobileHidden === true ||
+      base === 'hidden' ||
+      remote,
     protected: component.protected === true,
     multiple: component.multiple === true,
     validate: readValidation(component),

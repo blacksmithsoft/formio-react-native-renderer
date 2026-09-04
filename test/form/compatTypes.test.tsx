@@ -115,6 +115,46 @@ describe('compat types that used to warn', () => {
     expect(view.handle().getData()).toEqual({ dynamicWizard: [{ stepName: 'Owner' }] });
   });
 
+  it('does not draw remote selects or other network-only widgets', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'select',
+          key: 'trades',
+          label: 'Trades (multi)',
+          input: true,
+          multiple: true,
+          data: { values: [{ label: 'Welding', value: 'welding' }] },
+        },
+        {
+          type: 'select',
+          key: 'resourceSelect',
+          label: 'Linked Resource (select dataSrc)',
+          input: true,
+          dataSrc: 'resource',
+          data: { resource: 'users' },
+        },
+        {
+          type: 'select',
+          key: 'urlSelect',
+          label: 'URL-backed Select',
+          input: true,
+          dataSrc: 'url',
+          data: { url: 'https://example.com/api/options' },
+        },
+        { type: 'resource', key: 'relatedResource', label: 'Linked Resource component', input: true },
+      ],
+    });
+
+    const text = view.texts().join(' ');
+    expect(text).toContain('Trades (multi)');
+    expect(text).not.toContain('Shown differently on mobile');
+    expect(text).not.toContain('Linked Resource (select dataSrc)');
+    expect(text).not.toContain('URL-backed Select');
+    expect(text).not.toContain('Linked Resource component');
+    expect(view.handle().getBlockingIssues()).toEqual([]);
+  });
+
   it('does not block a form that only uses these types', () => {
     const parsed = parseForm({
       components: [

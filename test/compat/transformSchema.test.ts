@@ -43,11 +43,17 @@ describe('remote selects', () => {
     expect(select.template).toBeUndefined();
   });
 
-  it('ships an empty select with a warning rather than a select that spins forever', async () => {
+  it('hides a select whose options could not be resolved, rather than drawing it empty', async () => {
     const result = await run([remote], { resolveOptions: () => null });
 
-    expect(componentsOf(result.schema)[0]).toMatchObject({ dataSrc: 'values', data: { values: [] } });
-    expect(result.changes[0]).toMatchObject({ rule: 'unresolved-select-options', severity: 'warning' });
+    expect(componentsOf(result.schema)[0]).toMatchObject({
+      dataSrc: 'values',
+      data: { values: [] },
+      hidden: true,
+      mobileHidden: true,
+    });
+    expect(result.changes.map((change) => change.rule)).toContain('unresolved-select-options');
+    expect(result.changes.map((change) => change.rule)).toContain('hide-remote-component');
   });
 
   it('survives a lookup that throws', async () => {
@@ -57,7 +63,9 @@ describe('remote selects', () => {
       },
     });
 
-    expect(result.changes[0]?.rule).toBe('unresolved-select-options');
+    expect(result.changes.map((change) => change.rule)).toContain('unresolved-select-options');
+    expect(result.changes.map((change) => change.rule)).toContain('hide-remote-component');
+    expect(componentsOf(result.schema)[0]).toMatchObject({ hidden: true, mobileHidden: true });
   });
 
   it('leaves an already-inline select alone', async () => {

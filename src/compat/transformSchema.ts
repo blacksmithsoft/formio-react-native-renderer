@@ -26,11 +26,12 @@
  */
 
 import { compileCalculateValue } from '../engine/calculateValue';
+import { requiresNetwork } from '../engine/networkFields';
 import { baseFieldType } from '../parse/baseFieldType';
 import { COMPONENT_REGISTRY, type HostCapability } from '../form/registry';
 
 /** Bumped whenever the output for an unchanged input would differ. Cached schemas carry it. */
-export const TRANSFORM_VERSION = 3;
+export const TRANSFORM_VERSION = 4;
 
 type JsonObject = Record<string, unknown>;
 
@@ -43,6 +44,7 @@ export interface TransformChange {
   rule:
     | 'inline-select-options'
     | 'unresolved-select-options'
+    | 'hide-remote-component'
     | 'address-to-fields'
     | 'signature-to-file'
     | 'strip-custom-javascript'
@@ -167,7 +169,11 @@ export async function transformSchema(schema: unknown, options: TransformOptions
 
     if (base === 'select') await inlineSelectOptions(component, path, options, record);
 
-    if (type && !COMPONENT_REGISTRY[base]) {
+    if (requiresNetwork(component, inlineOptionsAvailable(component))) {
+      hideRemoteComponent(component, type, path, record);
+    }
+
+    if (type && !COMPONENT_REGISTRY[base] && component.hidden !== true) {
       record({
         path,
         type,
@@ -333,12 +339,36 @@ async function inlineSelectOptions(
     return;
   }
 
+  hideRemoteComponent(component, 'select', path, record);
   record({
     path,
     type: 'select',
     rule: 'unresolved-select-options',
-    detail: `Could not resolve options for dataSrc "${source}". The field will render empty.`,
+    detail: `Could not resolve options for dataSrc "${source}". The field is hidden on the device.`,
     severity: 'warning',
+  });
+}
+
+function inlineOptionsAvailable(component: JsonObject): boolean {
+  const values = isObject(component.data) && Array.isArray(component.data.values) ? component.data.values : [];
+  return values.length > 0;
+}
+
+function hideRemoteComponent(
+  component: JsonObject,
+  type: string,
+  path: string,
+  record: (change: TransformChange) => void
+): void {
+  if (component.hidden === true && component.mobileHidden === true) return;
+  component.hidden = true;
+  component.mobileHidden = true;
+  record({
+    path,
+    type,
+    rule: 'hide-remote-component',
+    detail: `"${labelOf(component)}" needs the network and is omitted on the device. Any stored value is kept.`,
+    severity: 'info',
   });
 }
 

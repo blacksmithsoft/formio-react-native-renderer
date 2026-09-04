@@ -53,9 +53,9 @@ export type LayoutKind = 'panel' | 'columns' | 'tabs' | 'table' | 'group';
  *
  * - `error` — the component cannot be rendered faithfully and its data cannot be trusted. The
  *   form is marked non-submittable. An unknown type with nested structure, or custom JavaScript.
- * - `warning` — the component is degraded but still usable and its data is still valid. A remote
- *   `select` whose options were never inlined, rendered as free text. Visible, logged, but it
- *   does not block a worker in the field from finishing the job.
+ * - `warning` — the component is degraded but still usable and its data is still valid. An
+ *   unknown primitive inferred as a text field. Visible, logged, but it does not block a
+ *   worker in the field from finishing the job.
  */
 export interface ComponentIssue {
   severity: 'error' | 'warning';
