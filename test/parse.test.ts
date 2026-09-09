@@ -29,6 +29,10 @@ describe('baseFieldType', () => {
     expect(baseFieldType('dynamicWizard')).toBe('editgrid');
     expect(baseFieldType('custom')).toBe('textarea');
     expect(baseFieldType('resource')).toBe('textfield');
+    expect(baseFieldType('sketchpad')).toBe('signature');
+    expect(baseFieldType('tagpad')).toBe('container');
+    expect(baseFieldType('modaledit')).toBe('container');
+    expect(baseFieldType('modalEdit')).toBe('container');
     // The JSON `custom` alias must not swallow branded primitives.
     expect(baseFieldType('custom_textfield')).toBe('textfield');
   });

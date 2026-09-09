@@ -99,6 +99,7 @@ export type {
   ComponentIssue,
   ComponentRole,
   ConditionalRule,
+  CheckMatrixConfig,
   DataMapConfig,
   FileConfig,
   FormComponent,

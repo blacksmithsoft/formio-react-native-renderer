@@ -181,6 +181,7 @@ export function SignatureControl({
   const file = isFileValue(value) ? value : undefined;
   const uri = dataUrl || (file ? (adapters.resolveFileUri?.(file) ?? file.localUri ?? file.url ?? '') : '');
   const signed = !!uri;
+  const sketch = component.type === 'sketchpad';
 
   const capture = useCallback(() => {
     const sign = adapters.captureSignature;
@@ -205,18 +206,36 @@ export function SignatureControl({
         disabled={disabled || !canCapture}
         onPress={capture}
         accessibilityRole="button"
-        accessibilityLabel={signed ? 'Signed. Tap to sign again.' : 'Tap to sign'}
+        accessibilityLabel={
+          signed
+            ? sketch
+              ? 'Sketch captured. Tap to sketch again.'
+              : 'Signed. Tap to sign again.'
+            : sketch
+              ? 'Tap to sketch'
+              : 'Tap to sign'
+        }
       >
         {signed ? (
           <Image source={{ uri }} style={styles.signatureImage} resizeMode="contain" />
         ) : (
           <Text style={styles.hint}>
-            {canCapture ? (busy ? 'Opening…' : 'Tap to sign') : 'Signing needs a newer version of this app'}
+            {canCapture
+              ? busy
+                ? 'Opening…'
+                : sketch
+                  ? 'Tap to sketch'
+                  : 'Tap to sign'
+              : sketch
+                ? 'Sketching needs a newer version of this app'
+                : 'Signing needs a newer version of this app'}
           </Text>
         )}
       </Pressable>
 
-      <Text style={styles.signatureCaption}>{component.field.footer || 'Sign above'}</Text>
+      <Text style={styles.signatureCaption}>
+        {component.field.footer || (sketch ? 'Sketch above' : 'Sign above')}
+      </Text>
 
       {signed && !disabled && (
         <View style={styles.buttonRow}>

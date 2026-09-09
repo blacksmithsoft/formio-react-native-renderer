@@ -15,6 +15,13 @@ const TYPE_ALIASES: Record<string, string> = {
   dynamicWizard: 'editgrid',
   custom: 'textarea',
   resource: 'textfield',
+  // Form.io premium. A sketchpad is a drawing surface; a tagpad is a keyed group of
+  // child fields (the image-tag overlay is not something a phone can honour offline).
+  sketchpad: 'signature',
+  tagpad: 'container',
+  // Modal Edit is a web-only overlay. On a phone the children just sit inline.
+  modaledit: 'container',
+  modalEdit: 'container',
 };
 
 /**

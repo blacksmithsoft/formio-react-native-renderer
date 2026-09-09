@@ -21,7 +21,9 @@ export function SignatureControl({ field, value }: { field: SchemaField; value: 
       <View style={styles.signaturePad}>
         {!!uri && <Image source={{ uri }} style={styles.signatureImage} resizeMode="contain" />}
       </View>
-      <Text style={styles.signatureCaption}>{field.footer || 'Sign above'}</Text>
+      <Text style={styles.signatureCaption}>
+        {field.footer || (field.type === 'sketchpad' ? 'Sketch above' : 'Sign above')}
+      </Text>
     </View>
   );
 }

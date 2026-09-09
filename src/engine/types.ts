@@ -150,6 +150,14 @@ export interface TreeConfig {
   allowRemove: boolean;
 }
 
+/** `checkmatrix` — a grid of independent checkboxes. Stored as `boolean[][]`. */
+export interface CheckMatrixConfig {
+  rows: number;
+  cols: number;
+  rowLabels?: string[];
+  colLabels?: string[];
+}
+
 /** `file` and `signature` capture limits, read by the host's capture adapter. */
 export interface FileConfig {
   multiple: boolean;
@@ -248,6 +256,7 @@ export interface FormComponent {
 
   select?: SelectConfig;
   file?: FileConfig;
+  checkMatrix?: CheckMatrixConfig;
   grid?: GridConfig;
   dataMap?: DataMapConfig;
   tree?: TreeConfig;

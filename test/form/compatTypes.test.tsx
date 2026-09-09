@@ -1,9 +1,11 @@
 // Copyright 2026 BlackSmithSoft B.V.
 // SPDX-License-Identifier: Apache-2.0
 
+import { act } from 'react';
 import { describe, expect, it } from 'vitest';
 import { parseForm } from '../../src/engine/parseForm';
 import { validateForm } from '../../src/engine/formState';
+import { transformSchema } from '../../src/compat/transformSchema';
 import { mount } from './support';
 
 describe('compat types that used to warn', () => {
@@ -155,6 +157,82 @@ describe('compat types that used to warn', () => {
     expect(view.handle().getBlockingIssues()).toEqual([]);
   });
 
+  it('draws a sketchpad as a drawing pad with no warning', () => {
+    const view = mount({
+      components: [{ type: 'sketchpad', key: 'sketch', label: 'Sketchpad', input: true }],
+    });
+
+    const text = view.texts().join(' ');
+    expect(text).toContain('Sketchpad');
+    expect(text).toContain('Sketch above');
+    expect(text).not.toContain('Shown differently on mobile');
+    expect(view.handle().getBlockingIssues()).toEqual([]);
+  });
+
+  it('captures a sketchpad through the signature adapter', async () => {
+    const view = mount(
+      { components: [{ type: 'sketchpad', key: 'sketch', label: 'Sketchpad', input: true }] },
+      { adapters: { captureSignature: async () => 'data:image/png;base64,abc' } }
+    );
+
+    view.press('Tap to sketch');
+    await act(async () => undefined);
+    expect(view.handle().getData()).toEqual({ sketch: 'data:image/png;base64,abc' });
+  });
+
+  it('draws a tagpad as its child fields with no warning', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'tagpad',
+          key: 'tagpad1',
+          label: 'Tagpad',
+          input: true,
+          components: [{ type: 'textfield', key: 'tagNote', label: 'Tag note', input: true }],
+        },
+      ],
+    });
+
+    expect(view.texts().join(' ')).not.toContain('Shown differently on mobile');
+    view.type(0, 'crack at north wall');
+    expect(view.handle().getData()).toEqual({ tagpad1: { tagNote: 'crack at north wall' } });
+  });
+
+  it('draws a checkmatrix as a checkbox grid with no warning', () => {
+    const view = mount({
+      components: [
+        { type: 'checkmatrix', key: 'checkMatrix', label: 'Check Matrix', input: true, numRows: 2, numCols: 2 },
+      ],
+    });
+
+    expect(view.texts().join(' ')).not.toContain('Shown differently on mobile');
+    view.press('Row 1: column 1');
+    expect(view.handle().getData()).toEqual({
+      checkMatrix: [
+        [true, false],
+        [false, false],
+      ],
+    });
+  });
+
+  it('draws a modaledit as its child fields with no warning', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'modaledit',
+          key: 'modalEditField',
+          label: 'Modal Edit',
+          input: true,
+          components: [{ type: 'textfield', key: 'value', label: 'Value', input: true }],
+        },
+      ],
+    });
+
+    expect(view.texts().join(' ')).not.toContain('Shown differently on mobile');
+    view.type(0, 'noted');
+    expect(view.handle().getData()).toEqual({ modalEditField: { value: 'noted' } });
+  });
+
   it('does not block a form that only uses these types', () => {
     const parsed = parseForm({
       components: [
@@ -166,9 +244,45 @@ describe('compat types that used to warn', () => {
         { type: 'datatable', key: 'departmentTable', input: true, components: [] },
         { type: 'dynamicWizard', key: 'dynamicWizard', input: true, components: [] },
         { type: 'resource', key: 'relatedResource', input: true },
+        { type: 'sketchpad', key: 'sketch', input: true },
+        {
+          type: 'tagpad',
+          key: 'tagpad1',
+          input: true,
+          components: [{ type: 'textfield', key: 'tagNote', input: true }],
+        },
+        { type: 'checkmatrix', key: 'checkMatrix', input: true },
+        {
+          type: 'modaledit',
+          key: 'modalEditField',
+          input: true,
+          components: [{ type: 'textfield', key: 'value', input: true }],
+        },
       ],
     });
     expect(parsed.issues).toEqual([]);
     expect(validateForm(parsed, {}).blocked).toBe(false);
+  });
+
+  it('does not flag known premium types as unknown in the transform', async () => {
+    const result = await transformSchema({
+      components: [
+        { type: 'sketchpad', key: 'sketch', input: true },
+        {
+          type: 'tagpad',
+          key: 'tagpad1',
+          input: true,
+          components: [{ type: 'textfield', key: 'tagNote', input: true }],
+        },
+        { type: 'checkmatrix', key: 'checkMatrix', input: true },
+        {
+          type: 'modaledit',
+          key: 'modalEditField',
+          input: true,
+          components: [{ type: 'textfield', key: 'value', input: true }],
+        },
+      ],
+    });
+    expect(result.changes).toEqual([]);
   });
 });

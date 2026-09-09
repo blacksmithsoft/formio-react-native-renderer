@@ -29,6 +29,7 @@ import {
 } from './controls/ChoiceControls';
 import { DateTimeControl, DayControl } from './controls/DateControls';
 import { FileControl, SignatureControl } from './controls/BinaryControls';
+import { CheckMatrixControl } from './controls/CheckMatrixControl';
 import { SurveyControl } from './controls/SurveyControl';
 import { TagsControl } from './controls/TagsControl';
 import { LocationControl } from './controls/LocationControl';
@@ -81,6 +82,7 @@ export const COMPONENT_REGISTRY: Record<string, ComponentEntry> = {
   // Tier A / B — everything else with a value
   tags: input(TagsControl),
   survey: input(SurveyControl),
+  checkmatrix: input(CheckMatrixControl),
   file: input(FileControl, 'files'),
   signature: input(SignatureControl, 'signature'),
   /**
@@ -116,6 +118,12 @@ export const COMPONENT_REGISTRY: Record<string, ComponentEntry> = {
   dynamicWizard: structural('grid'),
   custom: input(TextControl),
   resource: input(TextControl),
+  /** Form.io premium drawing surface. Capture uses the same host pad as `signature`. */
+  sketchpad: input(SignatureControl, 'signature'),
+  /** Form.io premium image tags. Children render; the overlay itself does not. */
+  tagpad: structural('container'),
+  /** Form.io Modal Edit. Children render inline; a phone has no modal overlay to honour. */
+  modaledit: structural('container'),
 };
 
 /**

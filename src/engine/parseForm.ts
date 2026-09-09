@@ -24,6 +24,7 @@ import { asString, isObject, toPositiveInt, type JsonObject } from '../parse/jso
 import { toField } from '../parse/toField';
 import type { SchemaField, SchemaFieldOption } from '../parse/types';
 import type {
+  CheckMatrixConfig,
   ComponentIssue,
   ComponentRole,
   ConditionalRule,
@@ -90,6 +91,7 @@ const KNOWN_INPUTS = new Set([
   'survey',
   'address',
   'location',
+  'checkmatrix',
 ]);
 
 /** Schema properties whose value is JavaScript. Present means the component is not supported. */
@@ -217,6 +219,47 @@ function readTreeConfig(component: JsonObject): TreeConfig {
     removeLabel: asString(component.removeRow) || 'Remove',
     allowAdd: !locked && !isFalse(component.addAnother),
     allowRemove: !locked,
+  };
+}
+
+/** Form.io's own Check Matrix example defaults to 3×3. Cap so a bad schema cannot explode the tree. */
+const CHECK_MATRIX_MAX = 12;
+
+function labelList(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const labels: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry === 'string' && entry) {
+      labels.push(entry);
+      continue;
+    }
+    if (!isObject(entry)) continue;
+    const label = asString(entry.label) || asString(entry.value);
+    if (label) labels.push(label);
+  }
+  return labels.length > 0 ? labels : undefined;
+}
+
+function readCheckMatrixConfig(component: JsonObject): CheckMatrixConfig {
+  const rowLabels = labelList(component.questions) ?? labelList(component.rowLabels);
+  const colLabels = labelList(component.values) ?? labelList(component.columnLabels);
+  const rows =
+    rowLabels?.length ??
+    Math.min(toPositiveInt(component.numRows) ?? toPositiveInt(component.rowCount) ?? 3, CHECK_MATRIX_MAX);
+  const cols =
+    colLabels?.length ??
+    Math.min(
+      toPositiveInt(component.numCols) ??
+        toPositiveInt(component.numColumns) ??
+        toPositiveInt(component.colCount) ??
+        3,
+      CHECK_MATRIX_MAX
+    );
+  return {
+    rows: Math.min(rows, CHECK_MATRIX_MAX),
+    cols: Math.min(cols, CHECK_MATRIX_MAX),
+    rowLabels,
+    colLabels,
   };
 }
 
@@ -516,6 +559,7 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
     collapsed: component.collapsible === true && component.collapsed === true,
     select,
     file: base === 'file' || base === 'signature' ? readFileConfig(component) : undefined,
+    checkMatrix: base === 'checkmatrix' ? readCheckMatrixConfig(component) : undefined,
     grid: role === 'grid' ? readGridConfig(component, base) : undefined,
     dataMap: role === 'datamap' ? readDataMapConfig(component) : undefined,
     tree: role === 'tree' ? readTreeConfig(component) : undefined,
