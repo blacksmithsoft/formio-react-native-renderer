@@ -819,6 +819,32 @@ describe('host overrides', () => {
     );
     expect(lookupControl(component, { byType: { textfield: ByType } })).toBe(ByType);
   });
+
+  it('uses resolve after byKey and before byType', () => {
+    const ByType = () => null;
+    const ByKey = () => null;
+    const ByResolve = () => null;
+    const component = {
+      type: 'datagrid',
+      key: 'crewTable',
+      base: 'datagrid',
+      issues: [],
+    } as unknown as FormComponent;
+
+    expect(
+      lookupControl(component, {
+        byType: { datagrid: ByType },
+        resolve: () => ByResolve,
+      })
+    ).toBe(ByResolve);
+    expect(
+      lookupControl(component, {
+        byKey: { crewTable: ByKey },
+        resolve: () => ByResolve,
+        byType: { datagrid: ByType },
+      })
+    ).toBe(ByKey);
+  });
 });
 
 describe('registry', () => {

@@ -49,7 +49,7 @@ export { noopTelemetry } from './engine/telemetry';
 /* ── Layer 2: the renderer ─────────────────────────────────────────────────────────────────── */
 
 export { FormioRenderer, SubmitBar } from './form/FormioRenderer';
-export { COMPONENT_REGISTRY, describeCoverage, lookupControl } from './form/registry';
+export { COMPONENT_REGISTRY, describeCoverage, lookupControl, resolveOverride } from './form/registry';
 export { FormioRenderProvider, useFormioRender } from './form/context';
 export { TextControl } from './form/controls/TextControl';
 

@@ -35,7 +35,7 @@ function isSelfLabelled(component: FormComponent): boolean {
  */
 function isLeftDisabledCustomTextfield(component: FormComponent): boolean {
   return (
-    component.type === 'custom_textfield' &&
+    (component.type === 'custom_textfield' || component.type === 'custom_textarea') &&
     component.field.disabled &&
     component.field.labelPosition === 'left'
   );

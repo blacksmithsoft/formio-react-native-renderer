@@ -17,7 +17,7 @@ import { FieldShell } from './FieldShell';
 import { useFormStyles } from './formStyles';
 import { HtmlBlocks } from './HtmlContent';
 import { Notices } from './Notice';
-import { lookupControl } from './registry';
+import { lookupControl, resolveOverride } from './registry';
 
 /**
  * Registry lookup, conditional evaluation and layout dispatch — Layer 2's centre.
@@ -80,10 +80,7 @@ export function ComponentRenderer({ component, parentPath, row }: NodeProps) {
     case 'grid': {
       // Grids skip the input registry, so host overrides have to be applied here. Key still
       // beats type so one table can be swapped without forking every datagrid.
-      const GridOverride =
-        overrides.byKey?.[component.key] ??
-        overrides.byType?.[component.type] ??
-        overrides.byType?.[component.base];
+      const GridOverride = resolveOverride(component, overrides);
       if (GridOverride) {
         const errors = form.errorsFor(path);
         return (
@@ -111,10 +108,7 @@ export function ComponentRenderer({ component, parentPath, row }: NodeProps) {
     }
     case 'datamap':
     case 'tree': {
-      const NestedOverride =
-        overrides.byKey?.[component.key] ??
-        overrides.byType?.[component.type] ??
-        overrides.byType?.[component.base];
+      const NestedOverride = resolveOverride(component, overrides);
       if (NestedOverride) {
         const errors = form.errorsFor(path);
         return (

@@ -129,22 +129,33 @@ export const COMPONENT_REGISTRY: Record<string, ComponentEntry> = {
 /**
  * The control for a component, with host overrides taking precedence.
  *
- * Resolution order is `key`, then raw `type`, then base `type`, then the registry, then the
- * unsupported placeholder. Key beats type so a host can special-case one awkward field without
- * forking the whole component type; raw type beats base type so a branded `custom_select` can be
- * overridden separately from a stock one.
+ * Resolution order is `key`, then `resolve`, then raw `type`, then base `type`, then the
+ * registry, then the unsupported placeholder. Key beats type so a host can special-case one
+ * awkward field without forking the whole component type; `resolve` is the prefix / child-shape
+ * escape hatch; raw type beats base type so a branded `custom_select` can be overridden
+ * separately from a stock one.
  *
  * Never returns `undefined`. A control that could not be resolved draws a visible placeholder,
  * which is the whole point of §6.
  */
+export function resolveOverride(
+  component: FormComponent,
+  overrides: ComponentOverrides = {}
+): FormioControl | undefined {
+  return (
+    overrides.byKey?.[component.key] ??
+    overrides.resolve?.(component) ??
+    overrides.byType?.[component.type] ??
+    overrides.byType?.[component.base]
+  );
+}
+
 export function lookupControl(
   component: FormComponent,
   overrides: ComponentOverrides = {}
 ): FormioControl {
   return (
-    overrides.byKey?.[component.key] ??
-    overrides.byType?.[component.type] ??
-    overrides.byType?.[component.base] ??
+    resolveOverride(component, overrides) ??
     COMPONENT_REGISTRY[component.base]?.control ??
     // Inference in the parser has already decided this should behave like a text field, and has
     // already attached the warning the user will see above it.

@@ -51,6 +51,12 @@ export type FormioControl = ComponentType<FormioControlProps>;
 export interface ComponentOverrides {
   byType?: Record<string, FormioControl>;
   byKey?: Record<string, FormioControl>;
+  /**
+   * Host decides from the parsed component after `byKey` and before `byType`.
+   * Return `undefined` to keep walking. Used when a prefix or child-shape match
+   * should swap a grid without enumerating every authored key.
+   */
+  resolve?: (component: FormComponent) => FormioControl | undefined;
 }
 
 /** What a host's picker hands back. Deliberately smaller than what gets stored. */
