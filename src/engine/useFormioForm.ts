@@ -99,6 +99,10 @@ export function useFormioForm(
   options: UseFormioFormOptions = {}
 ): FormioFormInstance {
   const { readOnly = false, onChange, telemetry = noopTelemetry } = options;
+  // Read through a ref: hosts usually pass an inline callback, and depending on it would hand
+  // out a new instance — and re-render every field — on each host render.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const form = useMemo(() => parseForm(schema), [schema]);
 
@@ -129,11 +133,11 @@ export function useFormioForm(
     (produce: (current: SubmissionData) => SubmissionData) => {
       setData((current) => {
         const next = reconcile(form, produce(current), touched.current);
-        if (next !== current) onChange?.(next);
+        if (next !== current) onChangeRef.current?.(next);
         return next;
       });
     },
-    [form, onChange]
+    [form]
   );
 
   const setValue = useCallback(
@@ -209,32 +213,56 @@ export function useFormioForm(
       setTouchVersion(0);
       const seeded = reconcile(form, applyDefaults(form, next ?? {}));
       setData(seeded);
-      onChange?.(seeded);
+      onChangeRef.current?.(seeded);
     },
-    [form, onChange]
+    [form]
   );
 
   const visible = useMemo(() => computeVisible(form.components, data), [form, data]);
+  const getValue = useCallback((path: string) => getAtPath(data, path), [data]);
+  const getSubmission = useCallback(() => toSubmission(data), [data]);
 
-  return {
-    form,
-    data,
-    errors: validation.errors,
-    isValid: Object.keys(validation.errors).length === 0 && !validation.blocked,
-    blocked: validation.blocked,
-    blockingIssues: validation.blockingIssues,
-    visibleComponents: visible,
-    getValue: useCallback((path: string) => getAtPath(data, path), [data]),
-    setValue,
-    touch,
-    touchMany,
-    errorsFor,
-    addRow,
-    removeRow,
-    validate,
-    reset,
-    getSubmission: useCallback(() => toSubmission(data), [data]),
-    readOnly,
-    showAllErrors,
-  };
+  // One identity per form state. The renderer context depends on it, so a fresh object on an
+  // unrelated host render (a rotation, a modal opening) would re-render every field.
+  return useMemo(
+    () => ({
+      form,
+      data,
+      errors: validation.errors,
+      isValid: Object.keys(validation.errors).length === 0 && !validation.blocked,
+      blocked: validation.blocked,
+      blockingIssues: validation.blockingIssues,
+      visibleComponents: visible,
+      getValue,
+      setValue,
+      touch,
+      touchMany,
+      errorsFor,
+      addRow,
+      removeRow,
+      validate,
+      reset,
+      getSubmission,
+      readOnly,
+      showAllErrors,
+    }),
+    [
+      form,
+      data,
+      validation,
+      visible,
+      getValue,
+      setValue,
+      touch,
+      touchMany,
+      errorsFor,
+      addRow,
+      removeRow,
+      validate,
+      reset,
+      getSubmission,
+      readOnly,
+      showAllErrors,
+    ]
+  );
 }

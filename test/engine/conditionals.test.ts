@@ -52,7 +52,7 @@ describe('simple conditionals', () => {
 describe('json logic conditionals', () => {
   const rule: ConditionalRule = {
     kind: 'json',
-    logic: { '===': [{ var: 'hasIncident' }, 'yes'] },
+    logic: { '===': [{ var: 'data.hasIncident' }, 'yes'] },
   };
 
   it('evaluates the rule against the submission', () => {
@@ -60,8 +60,31 @@ describe('json logic conditionals', () => {
     expect(evaluateConditional(rule, { root: { hasIncident: 'no' } })).toBe(false);
   });
 
-  it('merges the row over the root so a rule inside a grid sees its own row', () => {
-    expect(evaluateConditional(rule, { root: { hasIncident: 'no' }, row: { hasIncident: 'yes' } })).toBe(true);
+  it('reads the grid row from row, and the submission from data', () => {
+    const rowRule: ConditionalRule = {
+      kind: 'json',
+      logic: { '===': [{ var: 'row.hasIncident' }, 'yes'] },
+    };
+    const scope = { root: { hasIncident: 'no' }, row: { hasIncident: 'yes' } };
+    expect(evaluateConditional(rowRule, scope)).toBe(true);
+    expect(evaluateConditional(rule, scope)).toBe(false);
+  });
+
+  it('uses the submission as row when the component is not inside a grid', () => {
+    const rowRule: ConditionalRule = {
+      kind: 'json',
+      logic: { '===': [{ var: 'row.hasIncident' }, 'yes'] },
+    };
+    expect(evaluateConditional(rowRule, { root: { hasIncident: 'yes' } })).toBe(true);
+  });
+
+  it('exposes this component value as input', () => {
+    const inputRule: ConditionalRule = {
+      kind: 'json',
+      logic: { '===': [{ var: 'input' }, 'show'] },
+    };
+    expect(evaluateConditional(inputRule, { root: {} }, 'show')).toBe(true);
+    expect(evaluateConditional(inputRule, { root: {} }, 'hide')).toBe(false);
   });
 });
 

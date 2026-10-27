@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { evaluateConditional } from '../engine/conditionals';
 import { walkComponents } from '../engine/parseForm';
-import { joinPath } from '../engine/dataPaths';
+import { getAtPath, joinPath } from '../engine/dataPaths';
 import type { FormComponent } from '../engine/types';
 import { formatFieldValue } from '../render/formatFieldValue';
 import { useFormioTheme } from '../theme/FormioThemeProvider';
@@ -33,16 +33,20 @@ export interface NodeProps {
   parentPath: string;
   /** The enclosing grid row, so a conditional inside a grid reads its own row first. */
   row?: Record<string, unknown>;
+  /** The enclosing grid row's index. Absent at the root. */
+  rowIndex?: number;
 }
 
 export function NodeList({
   components,
   parentPath,
   row,
+  rowIndex,
 }: {
   components: FormComponent[];
   parentPath: string;
   row?: Record<string, unknown>;
+  rowIndex?: number;
 }) {
   return (
     <>
@@ -52,31 +56,32 @@ export function NodeList({
           component={component}
           parentPath={parentPath}
           row={row}
+          rowIndex={rowIndex}
         />
       ))}
     </>
   );
 }
 
-export function ComponentRenderer({ component, parentPath, row }: NodeProps) {
+export function ComponentRenderer({ component, parentPath, row, rowIndex }: NodeProps) {
   const { form, readOnly, overrides } = useFormioRender();
 
   // Evaluated here rather than read from `form.visibleComponents`, because the renderer needs
   // the row-scoped answer for the specific row it is drawing, and the same pure function
   // produces both.
+  const path = component.input ? joinPath(parentPath, component.key) : parentPath;
   const scope = row ? { root: form.data, row } : { root: form.data };
-  if (!evaluateConditional(component.conditional, scope)) return null;
+  const input = component.input ? getAtPath(form.data, path) : undefined;
+  if (!evaluateConditional(component.conditional, scope, input, rowIndex)) return null;
 
   // A schema-hidden component keeps its value and its default; it simply is not drawn.
   if (component.hidden) return null;
 
-  const path = component.input ? joinPath(parentPath, component.key) : parentPath;
-
   switch (component.role) {
     case 'layout':
-      return <LayoutNode component={component} path={path} row={row} />;
+      return <LayoutNode component={component} path={path} row={row} rowIndex={rowIndex} />;
     case 'container':
-      return <ContainerNode component={component} path={path} row={row} />;
+      return <ContainerNode component={component} path={path} row={row} rowIndex={rowIndex} />;
     case 'grid': {
       // Grids skip the input registry, so host overrides have to be applied here. Key still
       // beats type so one table can be swapped without forking every datagrid.
@@ -166,27 +171,47 @@ function InputNode({ component, path }: { component: FormComponent; path: string
 }
 
 /** `container` — an object scope with no chrome of its own. */
-function ContainerNode({ component, path, row }: { component: FormComponent; path: string; row?: Record<string, unknown> }) {
+function ContainerNode({
+  component,
+  path,
+  row,
+  rowIndex,
+}: {
+  component: FormComponent;
+  path: string;
+  row?: Record<string, unknown>;
+  rowIndex?: number;
+}) {
   return (
     <View>
       <Notices issues={component.issues} componentKey={component.key} />
-      <NodeList components={component.children} parentPath={path} row={row} />
+      <NodeList components={component.children} parentPath={path} row={row} rowIndex={rowIndex} />
     </View>
   );
 }
 
-function LayoutNode({ component, path, row }: { component: FormComponent; path: string; row?: Record<string, unknown> }) {
+function LayoutNode({
+  component,
+  path,
+  row,
+  rowIndex,
+}: {
+  component: FormComponent;
+  path: string;
+  row?: Record<string, unknown>;
+  rowIndex?: number;
+}) {
   switch (component.layout) {
     case 'columns':
-      return <ColumnsNode component={component} path={path} row={row} />;
+      return <ColumnsNode component={component} path={path} row={row} rowIndex={rowIndex} />;
     case 'tabs':
-      return <TabsNode component={component} path={path} row={row} />;
+      return <TabsNode component={component} path={path} row={row} rowIndex={rowIndex} />;
     case 'table':
-      return <TableNode component={component} path={path} row={row} />;
+      return <TableNode component={component} path={path} row={row} rowIndex={rowIndex} />;
     case 'panel':
-      return <PanelNode component={component} path={path} row={row} />;
+      return <PanelNode component={component} path={path} row={row} rowIndex={rowIndex} />;
     default:
-      return <NodeList components={component.children} parentPath={path} row={row} />;
+      return <NodeList components={component.children} parentPath={path} row={row} rowIndex={rowIndex} />;
   }
 }
 
@@ -196,7 +221,17 @@ function LayoutNode({ component, path, row }: { component: FormComponent; path: 
  * `collapsible` is honoured here where the read-only renderer ignores it, because a form is much
  * longer than a summary and collapsing a completed section is how a phone stays navigable.
  */
-function PanelNode({ component, path, row }: { component: FormComponent; path: string; row?: Record<string, unknown> }) {
+function PanelNode({
+  component,
+  path,
+  row,
+  rowIndex,
+}: {
+  component: FormComponent;
+  path: string;
+  row?: Record<string, unknown>;
+  rowIndex?: number;
+}) {
   const styles = useFormStyles();
   const { colors, metrics, icons } = useFormioTheme();
   const [collapsed, setCollapsed] = useState(component.collapsed);
@@ -227,7 +262,7 @@ function PanelNode({ component, path, row }: { component: FormComponent; path: s
       {!collapsed && (
         <View style={header ? styles.panelBody : undefined}>
           <Notices issues={component.issues} componentKey={component.key} />
-          <NodeList components={component.children} parentPath={path} row={row} />
+          <NodeList components={component.children} parentPath={path} row={row} rowIndex={rowIndex} />
         </View>
       )}
     </View>
@@ -235,7 +270,17 @@ function PanelNode({ component, path, row }: { component: FormComponent; path: s
 }
 
 /** `columns` — a wrapping 12-unit row that keeps the authored widths at any width. */
-function ColumnsNode({ component, path, row }: { component: FormComponent; path: string; row?: Record<string, unknown> }) {
+function ColumnsNode({
+  component,
+  path,
+  row,
+  rowIndex,
+}: {
+  component: FormComponent;
+  path: string;
+  row?: Record<string, unknown>;
+  rowIndex?: number;
+}) {
   const styles = useFormStyles();
   const { metrics } = useFormioTheme();
 
@@ -248,7 +293,7 @@ function ColumnsNode({ component, path, row }: { component: FormComponent; path:
             key={`${component.key}-column-${index}`}
             style={[styles.column, { flexBasis: `${(span / metrics.grid.columns) * 100}%` }]}
           >
-            <NodeList components={column.children} parentPath={path} row={row} />
+            <NodeList components={column.children} parentPath={path} row={row} rowIndex={rowIndex} />
           </View>
         );
       })}
@@ -263,7 +308,17 @@ function ColumnsNode({ component, path, row }: { component: FormComponent; path:
  * looking at is otherwise completely invisible, and the form appears to reject itself for no
  * reason.
  */
-function TabsNode({ component, path, row }: { component: FormComponent; path: string; row?: Record<string, unknown> }) {
+function TabsNode({
+  component,
+  path,
+  row,
+  rowIndex,
+}: {
+  component: FormComponent;
+  path: string;
+  row?: Record<string, unknown>;
+  rowIndex?: number;
+}) {
   const styles = useFormStyles();
   const { form } = useFormioRender();
   const [selected, setSelected] = useState(0);
@@ -292,7 +347,7 @@ function TabsNode({ component, path, row }: { component: FormComponent; path: st
           );
         })}
       </ScrollView>
-      {active && <NodeList components={active.children} parentPath={path} row={row} />}
+      {active && <NodeList components={active.children} parentPath={path} row={row} rowIndex={rowIndex} />}
     </View>
   );
 }
@@ -333,20 +388,31 @@ function tabHasErrors(
  * Each row becomes a stacked card. Horizontal scrolling on a phone, in a field environment, with
  * gloves on, is unusable, and a table narrow enough to fit is a table nobody can read.
  */
-function TableNode({ component, path, row }: { component: FormComponent; path: string; row?: Record<string, unknown> }) {
+function TableNode({
+  component,
+  path,
+  row,
+  rowIndex,
+}: {
+  component: FormComponent;
+  path: string;
+  row?: Record<string, unknown>;
+  rowIndex?: number;
+}) {
   const styles = useFormStyles();
   const rows = component.tableRows ?? [];
 
   return (
     <View>
-      {rows.map((cells, rowIndex) => (
-        <View key={`${component.key}-row-${rowIndex}`} style={styles.row}>
+      {rows.map((cells, tableRow) => (
+        <View key={`${component.key}-row-${tableRow}`} style={styles.row}>
           {cells.map((cell, cellIndex) => (
             <NodeList
               key={`cell-${cellIndex}`}
               components={cell.children}
               parentPath={path}
               row={row}
+              rowIndex={rowIndex}
             />
           ))}
         </View>

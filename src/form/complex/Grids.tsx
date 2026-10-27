@@ -1,7 +1,7 @@
 // Copyright 2026 BlackSmithSoft B.V.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View, type LayoutChangeEvent } from 'react-native';
 import { evaluateConditional } from '../../engine/conditionals';
 import { getAtPath, indexPath } from '../../engine/dataPaths';
@@ -9,12 +9,12 @@ import type { FormErrors } from '../../engine/formState';
 import type { FormComponent } from '../../engine/types';
 import { formatFieldValue } from '../../render/formatFieldValue';
 import { ComponentRenderer, NodeList } from '../ComponentRenderer';
-import { scrollContentHost, useFormioRender, type FormScrollMetrics } from '../context';
+import { useFormioRender } from '../context';
 import { GridTableCellContext } from '../FieldShell';
 import { useFormStyles } from '../formStyles';
 import { Notices } from '../Notice';
 import { useFormioTheme } from '../../theme/FormioThemeProvider';
-import { useRowWindow } from '../windowedRows';
+import { useListOffset, WindowedRowList } from '../windowedRowList';
 
 /**
  * `datagrid` and `editgrid` — docs/FORMS.md §7.
@@ -169,21 +169,23 @@ function TableCell({
   const styles = useFormStyles();
   const { form } = useFormioRender();
   const scope = { root: form.data, row };
-  if (!evaluateConditional(cell.conditional, scope)) return null;
+  if (!evaluateConditional(cell.conditional, scope, row[cell.key], rowIndex)) return null;
   if (locked && isPlainValueCell(cell)) {
     return <Text style={styles.gridTableCellText}>{formatFieldValue(row[cell.key], cell.field)}</Text>;
   }
-  return <ComponentRenderer component={cell} parentPath={indexPath(path, rowIndex)} row={row} />;
+  return <ComponentRenderer component={cell} parentPath={indexPath(path, rowIndex)} row={row} rowIndex={rowIndex} />;
 }
 
 function ReadOnlyCardFields({
   fields,
   row,
   parentPath,
+  rowIndex,
 }: {
   fields: FormComponent[];
   row: Record<string, unknown>;
   parentPath: string;
+  rowIndex: number;
 }) {
   const styles = useFormStyles();
   const { form } = useFormioRender();
@@ -191,7 +193,7 @@ function ReadOnlyCardFields({
   return (
     <>
       {fields.map((child, index) => {
-        if (child.hidden || !evaluateConditional(child.conditional, scope)) return null;
+        if (child.hidden || !evaluateConditional(child.conditional, scope, row[child.key], rowIndex)) return null;
         if (!isPlainValueCell(child)) {
           return (
             <ComponentRenderer
@@ -199,6 +201,7 @@ function ReadOnlyCardFields({
               component={child}
               parentPath={parentPath}
               row={row}
+              rowIndex={rowIndex}
             />
           );
         }
@@ -216,97 +219,9 @@ function ReadOnlyCardFields({
   );
 }
 
-function measureNodeY(
-  node: {
-    measureLayout?: (
-      relativeTo: never,
-      onSuccess: (x: number, y: number) => void,
-      onFail: () => void
-    ) => void;
-  } | null,
-  relativeTo: unknown,
-  onY: (y: number) => void,
-  onFail: () => void
-): void {
-  // A number is a Paper native tag. Fabric logs and returns without calling either callback.
-  if (
-    !node ||
-    typeof relativeTo !== 'object' ||
-    relativeTo === null ||
-    typeof node.measureLayout !== 'function'
-  ) {
-    onFail();
-    return;
-  }
-  try {
-    node.measureLayout(relativeTo as never, (_x, y) => onY(y), onFail);
-  } catch {
-    onFail();
-  }
-}
-
 function useGridOffset() {
   const { scrollRef, scrollMetrics } = useFormioRender();
-  const bodyRef = useRef<View>(null);
-  const [tableOffsetY, setTableOffsetY] = useState(0);
-  const [offsetKnown, setOffsetKnown] = useState(!scrollRef);
-
-  const captureOffset = useCallback(() => {
-    const relativeTo = scrollContentHost(scrollRef?.current);
-    if (!relativeTo || !bodyRef.current) {
-      setOffsetKnown(true);
-      return;
-    }
-    measureNodeY(
-      bodyRef.current,
-      relativeTo,
-      (y) => {
-        setTableOffsetY((current) => (Math.abs(current - y) < 1 ? current : y));
-        setOffsetKnown(true);
-      },
-      () => setOffsetKnown(true)
-    );
-  }, [scrollRef]);
-
-  return {
-    bodyRef,
-    tableOffsetY,
-    metrics: offsetKnown ? scrollMetrics : undefined,
-    onLayout: captureOffset,
-  };
-}
-
-function WindowedRowList({
-  count,
-  estimatedRowHeight,
-  tableOffsetY,
-  metrics,
-  renderRow,
-}: {
-  count: number;
-  estimatedRowHeight: number;
-  tableOffsetY: number;
-  metrics: FormScrollMetrics | undefined;
-  renderRow: (index: number, onLayout: (event: LayoutChangeEvent) => void) => ReactNode;
-}) {
-  const measuredHeights = useRef(new Map<number, number>());
-  const window = useRowWindow(count, tableOffsetY, estimatedRowHeight, measuredHeights, metrics);
-
-  return (
-    <>
-      {window.topSpacer > 0 ? <View style={{ height: window.topSpacer }} /> : null}
-      {Array.from({ length: window.end - window.start }, (_, offset) => {
-        const index = window.start + offset;
-        return renderRow(index, (event) => {
-          const height = event.nativeEvent.layout.height;
-          const previous = measuredHeights.current.get(index);
-          if (previous !== undefined && Math.abs(previous - height) < 1) return;
-          measuredHeights.current.set(index, height);
-        });
-      })}
-      {window.bottomSpacer > 0 ? <View style={{ height: window.bottomSpacer }} /> : null}
-    </>
-  );
+  return useListOffset(scrollRef, scrollMetrics);
 }
 
 function GridTable({
@@ -323,13 +238,12 @@ function GridTable({
   editable: boolean;
 }) {
   const styles = useFormStyles();
-  const { form, readOnly, scrollRef, scrollMetrics } = useFormioRender();
+  const { form, readOnly } = useFormioRender();
   const { metrics } = useFormioTheme();
   const scroller = useRef<ScrollView | null>(null);
-  const bodyRef = useRef<View>(null);
   const [available, setAvailable] = useState<number | undefined>(undefined);
-  const [tableOffsetY, setTableOffsetY] = useState(0);
-  const [offsetKnown, setOffsetKnown] = useState(!scrollRef);
+  const offset = useGridOffset();
+  const { captureOffset } = offset;
 
   const removeLabel = component.grid?.removeLabel ?? 'Remove';
   const actionWidth = editable ? metrics.form.touchTarget : 0;
@@ -337,23 +251,6 @@ function GridTable({
   const estimatedRowHeight = locked
     ? metrics.control.lineHeight + metrics.form.tableCellPadY * 2
     : metrics.control.minHeight + metrics.form.tableCellPadY * 2;
-
-  const captureOffset = useCallback(() => {
-    const relativeTo = scrollContentHost(scrollRef?.current);
-    if (!relativeTo || !bodyRef.current) {
-      setOffsetKnown(true);
-      return;
-    }
-    measureNodeY(
-      bodyRef.current,
-      relativeTo,
-      (y) => {
-        setTableOffsetY((current) => (Math.abs(current - y) < 1 ? current : y));
-        setOffsetKnown(true);
-      },
-      () => setOffsetKnown(true)
-    );
-  }, [scrollRef]);
 
   /*
    * The table measures itself rather than reading the form's container width. A grid nested in a
@@ -424,13 +321,14 @@ function GridTable({
           {editable && <View style={styles.gridTableActionCell} />}
         </View>
 
-        <View ref={bodyRef} onLayout={captureOffset}>
+        <View ref={offset.bodyRef} onLayout={captureOffset}>
           <GridTableCellContext.Provider value>
             <WindowedRowList
               count={rows.length}
               estimatedRowHeight={estimatedRowHeight}
-              tableOffsetY={tableOffsetY}
-              metrics={offsetKnown ? scrollMetrics : undefined}
+              tableOffsetY={offset.tableOffsetY}
+              metrics={offset.metrics}
+              onRangeChange={captureOffset}
               renderRow={(rowIndex, onRowLayout) => {
                 const row = rows[rowIndex];
                 if (!row) return null;
@@ -498,12 +396,13 @@ function CardStack({
     : metrics.control.minHeight * 2 + metrics.form.rowPadding * 2;
 
   return (
-    <View ref={offset.bodyRef} onLayout={offset.onLayout}>
+    <View ref={offset.bodyRef} onLayout={offset.captureOffset}>
       <WindowedRowList
         count={rows.length}
         estimatedRowHeight={estimatedRowHeight}
         tableOffsetY={offset.tableOffsetY}
         metrics={offset.metrics}
+        onRangeChange={offset.captureOffset}
         renderRow={(index, onRowLayout) => {
           const row = rows[index];
           if (!row) return null;
@@ -519,9 +418,14 @@ function CardStack({
                 onRemove={allowRemove ? () => form.removeRow(path, index) : undefined}
               />
               {locked ? (
-                <ReadOnlyCardFields fields={fields} row={row} parentPath={indexPath(path, index)} />
+                <ReadOnlyCardFields
+                  fields={fields}
+                  row={row}
+                  parentPath={indexPath(path, index)}
+                  rowIndex={index}
+                />
               ) : (
-                <NodeList components={fields} parentPath={indexPath(path, index)} row={row} />
+                <NodeList components={fields} parentPath={indexPath(path, index)} row={row} rowIndex={index} />
               )}
             </View>
           );
@@ -624,12 +528,13 @@ function EditGridRows({
   const offset = useGridOffset();
 
   return (
-    <View ref={offset.bodyRef} onLayout={offset.onLayout}>
+    <View ref={offset.bodyRef} onLayout={offset.captureOffset}>
       <WindowedRowList
         count={rows.length}
         estimatedRowHeight={metrics.form.touchTarget + metrics.form.rowGap}
         tableOffsetY={offset.tableOffsetY}
         metrics={offset.metrics}
+        onRangeChange={offset.captureOffset}
         renderRow={(index, onRowLayout) => {
           const row = rows[index];
           if (!row) return null;
@@ -663,12 +568,14 @@ function EditGridRows({
                       components={component.children}
                       parentPath={indexPath(path, index)}
                       row={row}
+                      rowIndex={index}
                     />
                   ) : (
                     <ReadOnlyCardFields
                       fields={component.children}
                       row={row}
                       parentPath={indexPath(path, index)}
+                      rowIndex={index}
                     />
                   )}
                   {editable && (

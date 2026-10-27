@@ -18,13 +18,34 @@ import type { ConditionalRule, FormComponent } from './types';
 /**
  * The data a conditional is evaluated against.
  *
- * `row` exists because Form.io evaluates a conditional inside a datagrid against that row first
- * and the whole submission second. Without it, a rule like "show Notes when Status is Failed"
- * would read the first row's status for every row.
+ * `row` is the current datagrid row. Simple `when` / `eq` rules check the row first, then the
+ * submission. JSON Logic does not merge the two: a rule is authored against `{ "var": "data.x" }`
+ * or `{ "var": "row.x" }`, and at the root Form.io sets `row` to the same object as `data`.
  */
 export interface ConditionalScope {
   root: Record<string, unknown>;
   row?: Record<string, unknown>;
+}
+
+/**
+ * The object Form.io hands to JSON Logic.
+ *
+ * `input` and `value` are this component's current value. `rowIndex` is the enclosing grid row,
+ * or `null` outside one. A missing variable resolves to `null` inside the interpreter, which is
+ * the same result Form.io's evaluator produces for a variable the context does not carry.
+ */
+export function logicContext(
+  scope: ConditionalScope,
+  input: unknown,
+  rowIndex = -1
+): Record<string, unknown> {
+  return {
+    data: scope.root,
+    row: scope.row ?? scope.root,
+    input,
+    value: input,
+    rowIndex: rowIndex < 0 ? null : rowIndex,
+  };
 }
 
 /** Row scope wins, then the submission root. Matches Form.io's contextual data resolution. */
@@ -65,12 +86,14 @@ function matches(value: unknown, eq: string): boolean {
  */
 export function evaluateConditional(
   rule: ConditionalRule | undefined,
-  scope: ConditionalScope
+  scope: ConditionalScope,
+  input?: unknown,
+  rowIndex = -1
 ): boolean {
   if (!rule) return true;
 
   if (rule.kind === 'json') {
-    const result = apply(rule.logic, scope.row ? { ...scope.root, ...scope.row } : scope.root);
+    const result = apply(rule.logic, logicContext(scope, input, rowIndex));
     // A rule that evaluates to null could not be resolved — treat it as "no opinion".
     return result === null || result === undefined ? true : truthy(result);
   }

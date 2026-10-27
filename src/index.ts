@@ -50,7 +50,8 @@ export { noopTelemetry } from './engine/telemetry';
 
 export { FormioRenderer, SubmitBar } from './form/FormioRenderer';
 export { COMPONENT_REGISTRY, describeCoverage, lookupControl, resolveOverride } from './form/registry';
-export { FormioRenderProvider, useFormioRender } from './form/context';
+export { FormioRenderProvider, useFormioContainerWidth, useFormioRender } from './form/context';
+export { FormioWindowedRows } from './form/windowedRowList';
 export { TextControl } from './form/controls/TextControl';
 
 /* ── Layer 3: the shells ───────────────────────────────────────────────────────────────────── */
@@ -144,6 +145,7 @@ export type {
   FieldRegistration,
 } from './form/context';
 export type { ComponentEntry, HostCapability } from './form/registry';
+export type { FormioWindowedRowsProps } from './form/windowedRowList';
 
 export type { FormioScreenProps } from './shells/FormioScreen';
 export type { FormioWizardScreenProps } from './shells/FormioWizardScreen';

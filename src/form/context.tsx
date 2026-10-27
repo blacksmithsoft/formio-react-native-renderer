@@ -9,7 +9,8 @@
  *
  * - the **form engine**, so a control can read and write its own path;
  * - the **measured container width**, so layout decisions read the space the form actually has
- *   rather than the size of the screen — see the note on `Dimensions` below;
+ *   rather than the size of the screen — see the note on `Dimensions` below. It travels on its
+ *   own store, not on the main context: a rotation must not re-render every field;
  * - **host overrides and adapters**, which is how a package with no native dependencies still
  *   ends up with a real date picker and a real camera in the app that embeds it;
  * - **field registration**, so `scrollToFirstError` can find the control it needs to reveal.
@@ -19,7 +20,13 @@
  * wrong in every one of them.
  */
 
-import { createContext, useContext, type ComponentType, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useSyncExternalStore,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
 import type { FormioFormInstance } from '../engine/useFormioForm';
 import type { FormComponent } from '../engine/types';
 
@@ -194,7 +201,6 @@ export function scrollContentHost(scroll: FormScrollable | null | undefined): ob
 
 export interface FormioRenderContextValue {
   form: FormioFormInstance;
-  containerWidth: number | undefined;
   readOnly: boolean;
   overrides: ComponentOverrides;
   adapters: FormioAdapters;
@@ -225,4 +231,49 @@ export interface FormioRenderProviderProps extends FormioRenderContextValue {
 
 export function FormioRenderProvider({ children, ...value }: FormioRenderProviderProps) {
   return <FormioRenderContext.Provider value={value}>{children}</FormioRenderContext.Provider>;
+}
+
+/** The renderer root's measured width, published outside React state. */
+export interface ContainerWidthStore {
+  subscribe: (onStoreChange: () => void) => () => void;
+  getSnapshot: () => number | undefined;
+  set: (width: number) => void;
+}
+
+export function createContainerWidthStore(): ContainerWidthStore {
+  let width: number | undefined;
+  const listeners = new Set<() => void>();
+  return {
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    getSnapshot: () => width,
+    set: (next) => {
+      // Sub-pixel jitter on rotation would otherwise notify every reader for nothing.
+      if (width !== undefined && Math.abs(width - next) < 1) return;
+      width = next;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
+export const FormioContainerWidthContext = createContext<ContainerWidthStore | null>(null);
+
+const NO_WIDTH_SUBSCRIBE = () => () => undefined;
+const NO_WIDTH = () => undefined;
+
+/**
+ * The width the form was laid out at, or `undefined` before the first layout.
+ *
+ * Only the components that call this re-render when it changes — which is the point of keeping
+ * it off {@link FormioRenderContext}.
+ */
+export function useFormioContainerWidth(): number | undefined {
+  const store = useContext(FormioContainerWidthContext);
+  return useSyncExternalStore(
+    store?.subscribe ?? NO_WIDTH_SUBSCRIBE,
+    store?.getSnapshot ?? NO_WIDTH,
+    store?.getSnapshot ?? NO_WIDTH
+  );
 }

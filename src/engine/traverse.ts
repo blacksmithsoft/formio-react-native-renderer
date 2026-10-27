@@ -89,7 +89,8 @@ export function forEachInstance(
 
   for (const component of components) {
     const path = component.input ? joinPath(parentPath, component.key) : parentPath;
-    const visible = parentVisible && evaluateConditional(component.conditional, scope);
+    const input = component.input ? getAtPath(data, path) : undefined;
+    const visible = parentVisible && evaluateConditional(component.conditional, scope, input, rowIndex);
 
     visit({ component, path, scope, visible, rowIndex });
 
@@ -154,10 +155,11 @@ export function visibleComponents(
   const out: FormComponent[] = [];
 
   for (const component of components) {
-    if (!evaluateConditional(component.conditional, scope)) continue;
+    const path = component.input ? joinPath(parentPath, component.key) : parentPath;
+    const input = component.input ? getAtPath(data, path) : undefined;
+    if (!evaluateConditional(component.conditional, scope, input)) continue;
     if (component.hidden) continue;
 
-    const path = component.input ? joinPath(parentPath, component.key) : parentPath;
     const childContext = { parentPath: path, row: context.row };
 
     out.push({

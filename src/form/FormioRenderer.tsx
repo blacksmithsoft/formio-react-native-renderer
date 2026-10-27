@@ -27,6 +27,8 @@ import type { FormComponent, FormDefinition } from '../engine/types';
 import { useFormioForm, type FormioFormInstance } from '../engine/useFormioForm';
 import { NodeList } from './ComponentRenderer';
 import {
+  createContainerWidthStore,
+  FormioContainerWidthContext,
   FormioRenderProvider,
   type ComponentOverrides,
   type FieldRegistration,
@@ -142,17 +144,15 @@ function FormioRendererImpl(props: FormioRendererProps, ref: Ref<FormioRendererH
   const own = useFormioForm(provided ? undefined : schema, undefined, { readOnly, telemetry });
   const form = provided ?? own;
 
-  const [containerWidth, setContainerWidth] = useState<number | undefined>(undefined);
+  // A store, not state: a rotation re-renders only the components that read the width.
+  const [widthStore] = useState(createContainerWidthStore);
   const fields = useRef(new Map<string, FieldRegistration>());
   const innerScroll = useRef<Scrollable | null>(null);
 
-  const onLayout = useCallback((event: LayoutChangeEvent) => {
-    const { width } = event.nativeEvent.layout;
-    // Sub-pixel jitter on rotation would otherwise re-render the whole tree.
-    setContainerWidth((current) =>
-      current !== undefined && Math.abs(current - width) < 1 ? current : width
-    );
-  }, []);
+  const onLayout = useCallback(
+    (event: LayoutChangeEvent) => widthStore.set(event.nativeEvent.layout.width),
+    [widthStore]
+  );
 
   const registerField = useCallback((path: string, registration: FieldRegistration | null) => {
     if (registration) fields.current.set(path, registration);
@@ -222,7 +222,6 @@ function FormioRendererImpl(props: FormioRendererProps, ref: Ref<FormioRendererH
   const context = useMemo(
     () => ({
       form,
-      containerWidth,
       readOnly: readOnly || form.readOnly,
       overrides,
       adapters,
@@ -230,16 +229,18 @@ function FormioRendererImpl(props: FormioRendererProps, ref: Ref<FormioRendererH
       scrollRef,
       scrollMetrics,
     }),
-    [form, containerWidth, readOnly, overrides, adapters, registerField, scrollRef, scrollMetrics]
+    [form, readOnly, overrides, adapters, registerField, scrollRef, scrollMetrics]
   );
 
   const body = (
-    <FormioRenderProvider {...context}>
-      {header}
-      <NodeList components={components ?? form.form.components} parentPath="" />
-      {footer}
-      {showSubmit && <SubmitBar form={form} onPress={submit} />}
-    </FormioRenderProvider>
+    <FormioContainerWidthContext.Provider value={widthStore}>
+      <FormioRenderProvider {...context}>
+        {header}
+        <NodeList components={components ?? form.form.components} parentPath="" />
+        {footer}
+        {showSubmit && <SubmitBar form={form} onPress={submit} />}
+      </FormioRenderProvider>
+    </FormioContainerWidthContext.Provider>
   );
 
   if (scrollable) {

@@ -175,7 +175,7 @@ describe('reconcile', () => {
       textfield('qty'),
       textfield('rate'),
       textfield('total', {
-        calculateValue: { '*': [{ var: 'qty' }, { var: 'rate' }] },
+        calculateValue: { '*': [{ var: 'data.qty' }, { var: 'data.rate' }] },
       }),
     ]);
     expect(reconcile(parsed, { qty: 3, rate: 4 })).toMatchObject({ total: 12 });
@@ -186,11 +186,50 @@ describe('reconcile', () => {
       textfield('qty'),
       textfield('total', {
         allowCalculateOverride: true,
-        calculateValue: { '*': [{ var: 'qty' }, 2] },
+        calculateValue: { '*': [{ var: 'data.qty' }, 2] },
       }),
     ]);
     expect(reconcile(parsed, { qty: 3, total: 99 }, new Set(['total']))).toMatchObject({ total: 99 });
     expect(reconcile(parsed, { qty: 3, total: 99 }, new Set())).toMatchObject({ total: 6 });
+  });
+
+  it('joins fields addressed as data.*, the way a Form.io checklist number is written', () => {
+    const parsed = form([
+      textfield('_vProjectCode'),
+      textfield('_vTaskCode'),
+      textfield('checklistNo', {
+        calculateValue: {
+          cat: [
+            { var: 'data._vProjectCode' },
+            '-',
+            { var: 'data._vTaskCode' },
+            '-',
+            { var: 'data.form_identifier' },
+          ],
+        },
+      }),
+    ]);
+    expect(
+      reconcile(parsed, { _vProjectCode: 'AYN-14', _vTaskCode: 'EW-025', form_identifier: 'C3-0017' })
+    ).toMatchObject({ checklistNo: 'AYN-14-EW-025-C3-0017' });
+  });
+
+  it('keeps a grid row and the submission apart inside one calculation', () => {
+    const parsed = form([
+      textfield('qty'),
+      datagrid('lines', [
+        textfield('qty'),
+        textfield('total', {
+          calculateValue: { '+': [{ var: 'row.qty' }, { var: 'data.qty' }] },
+        }),
+      ]),
+    ]);
+    expect(reconcile(parsed, { qty: 10, lines: [{ qty: 2 }, { qty: 5 }] })).toMatchObject({
+      lines: [
+        { qty: 2, total: 12 },
+        { qty: 5, total: 15 },
+      ],
+    });
   });
 
   it('numbers datagrid rows from rowIndex without running JavaScript', () => {

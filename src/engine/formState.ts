@@ -14,6 +14,7 @@
  */
 
 import { evaluateCalculate } from './calculateValue';
+import { logicContext } from './conditionals';
 import { getAtPath, hasAtPath, setAtPath, unsetAtPath } from './dataPaths';
 import { forEachInstance } from './traverse';
 import type { FormComponent, FormDefinition } from './types';
@@ -137,8 +138,8 @@ export function applyCalculations(
     if (!component.calculate || !component.input || !path || !visible) return;
     if (component.calculateOverride && touched.has(path)) return;
 
-    const context = scope.row ? { ...scope.root, ...scope.row } : scope.root;
-    const value = evaluateCalculate(component.calculate, rowIndex, context);
+    const current = getAtPath(next, path);
+    const value = evaluateCalculate(component.calculate, rowIndex, logicContext(scope, current, rowIndex));
     if (value === null || value === undefined) return;
     if (Object.is(getAtPath(next, path), value)) return;
     next = setAtPath(next, path, value);
