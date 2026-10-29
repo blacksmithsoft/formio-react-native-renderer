@@ -40,6 +40,17 @@ function rowsOf(data: Record<string, unknown>, path: string): Record<string, unk
   return value.map((row) => (row !== null && typeof row === 'object' && !Array.isArray(row) ? (row as Record<string, unknown>) : {}));
 }
 
+/**
+ * Whether this row may show a remove control.
+ *
+ * The grid-wide flag still decides whether remove exists at all. A row the server prefilled
+ * with `canRemove: false` — a material line the user must not delete — hides only its own
+ * control. A row the user adds has no such key, so the control stays.
+ */
+function rowAllowsRemove(row: Record<string, unknown>): boolean {
+  return row.canRemove !== false;
+}
+
 export function GridButton({
   label,
   onPress,
@@ -351,14 +362,18 @@ function GridTable({
                     ))}
                     {editable && (
                       <View style={styles.gridTableActionCell}>
-                        <Pressable
-                          onPress={() => form.removeRow(path, rowIndex)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`${removeLabel} ${rowIndex + 1}`}
-                        >
-                          {/* A word per row would cost a column's worth of width on a phone. */}
-                          <Text style={styles.chipRemove}>✕</Text>
-                        </Pressable>
+                        {/* The cell stays even when this row cannot be removed, so the columns
+                            of a mixed table stay aligned. */}
+                        {rowAllowsRemove(row) && (
+                          <Pressable
+                            onPress={() => form.removeRow(path, rowIndex)}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${removeLabel} ${rowIndex + 1}`}
+                          >
+                            {/* A word per row would cost a column's worth of width on a phone. */}
+                            <Text style={styles.chipRemove}>✕</Text>
+                          </Pressable>
+                        )}
                       </View>
                     )}
                   </View>
@@ -415,7 +430,9 @@ function CardStack({
               <RowHeader
                 title={`${index + 1} of ${rows.length}`}
                 removeLabel={removeLabel}
-                onRemove={allowRemove ? () => form.removeRow(path, index) : undefined}
+                onRemove={
+                  allowRemove && rowAllowsRemove(row) ? () => form.removeRow(path, index) : undefined
+                }
               />
               {locked ? (
                 <ReadOnlyCardFields
@@ -578,7 +595,7 @@ function EditGridRows({
                       rowIndex={index}
                     />
                   )}
-                  {editable && (
+                  {editable && rowAllowsRemove(row) && (
                     <View style={styles.buttonRow}>
                       <GridButton
                         label={component.grid?.removeLabel ?? 'Remove'}

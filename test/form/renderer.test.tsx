@@ -324,6 +324,62 @@ describe('data grid', () => {
     expect(view.handle().getData()).toEqual({ lines: [{ qty: 'second' }] });
   });
 
+  it('hides remove on a row marked canRemove false and keeps it on a row the user adds', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'datagrid',
+          key: 'lines',
+          label: 'Lines',
+          input: true,
+          defaultValue: [{ qty: 'stock', canRemove: false }],
+          components: [textfield('qty')],
+        },
+      ],
+    });
+    const removeLabels = () =>
+      view
+        .pressables()
+        .map((node) => node.props.accessibilityLabel)
+        .filter((label): label is string => typeof label === 'string' && label.startsWith('Remove'));
+
+    expect(removeLabels()).toEqual([]);
+    view.press('Add Another');
+    view.type(1, 'added');
+    expect(removeLabels()).toEqual(['Remove 2']);
+
+    view.press('Remove 2');
+    expect(view.handle().getData()).toEqual({ lines: [{ qty: 'stock', canRemove: false }] });
+  });
+
+  it('hides remove on a locked card the same way', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'datagrid',
+          key: 'lines',
+          label: 'Lines',
+          input: true,
+          displayAsTable: false,
+          defaultValue: [{ qty: 'stock', canRemove: false }],
+          components: [textfield('qty')],
+        },
+      ],
+    });
+    expect(view.texts()).toContain('1 of 1');
+    expect(view.pressables().some((node) => node.props.accessibilityLabel === 'Remove 1 of 1')).toBe(
+      false
+    );
+
+    view.press('Add Another');
+    expect(view.pressables().some((node) => node.props.accessibilityLabel === 'Remove 2 of 2')).toBe(
+      true
+    );
+    expect(view.pressables().some((node) => node.props.accessibilityLabel === 'Remove 1 of 2')).toBe(
+      false
+    );
+  });
+
   it('draws a datagrid as a table even without the flag', () => {
     const view = mount({
       components: [
@@ -378,6 +434,31 @@ describe('data grid', () => {
     view.type(0, 'filled');
     expect(view.run((h) => h.submit())).toBeNull();
     expect(view.texts().filter((text) => text === 'qty is required')).toHaveLength(1);
+  });
+});
+
+describe('edit grid', () => {
+  it('hides remove on an open row marked canRemove false', () => {
+    const view = mount({
+      components: [
+        {
+          type: 'editgrid',
+          key: 'lines',
+          label: 'Lines',
+          input: true,
+          defaultValue: [{ qty: 'stock', canRemove: false }],
+          components: [textfield('qty')],
+        },
+      ],
+    });
+
+    view.press('stock');
+    expect(view.texts()).not.toContain('Remove');
+
+    view.press('Add Another');
+    expect(view.texts()).toContain('Remove');
+    view.press('Remove');
+    expect(view.handle().getData()).toEqual({ lines: [{ qty: 'stock', canRemove: false }] });
   });
 });
 
