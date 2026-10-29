@@ -519,6 +519,10 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
     ? []
     : parseFormComponents(component.components);
 
+  // An htmlelement with `tag: "style"` is a stylesheet the web injects. Its content is CSS, and
+  // drawing it would print the rules on the form. It stays in the tree and stays off the screen.
+  const styleElement = asString(component.tag).toLowerCase() === 'style';
+
   const calculate = compileCalculateValue(component.calculateValue);
   // A calculated field authored with `input: false` is still a value on the row — S.No and a
   // checklist question must appear and must be stored — but it is not something the user types.
@@ -540,7 +544,8 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
       component.hidden === true ||
       component.mobileHidden === true ||
       base === 'hidden' ||
-      remote,
+      remote ||
+      styleElement,
     protected: component.protected === true,
     multiple: component.multiple === true,
     validate: readValidation(component),
@@ -554,7 +559,7 @@ function normalizeOne(component: JsonObject): FormComponent | FormComponent[] {
     columns: known?.layout === 'columns' ? toColumns(component) : undefined,
     tabs: known?.layout === 'tabs' ? toTabs(component) : undefined,
     tableRows: known?.layout === 'table' ? toTableRows(component) : undefined,
-    ...displayHtml(role, asString(component.html) || asString(component.content), key),
+    ...displayHtml(role, styleElement ? '' : asString(component.html) || asString(component.content), key),
     collapsible: component.collapsible === true,
     collapsed: component.collapsible === true && component.collapsed === true,
     select,

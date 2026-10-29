@@ -768,6 +768,17 @@ describe('layout', () => {
     expect(view.texts()).toContain('Wear gloves.');
   });
 
+  it('skips an htmlelement whose tag is style', () => {
+    const view = mount({
+      components: [
+        { type: 'htmlelement', key: 'css', tag: 'style', content: '.row { color: red }' },
+        { type: 'htmlelement', key: 'note', tag: 'p', content: 'Wear gloves.' },
+      ],
+    });
+    expect(view.texts()).not.toContain('.row { color: red }');
+    expect(view.texts()).toContain('Wear gloves.');
+  });
+
   it('draws an embedded letterhead without a WebView', () => {
     const view = mount({
       components: [
