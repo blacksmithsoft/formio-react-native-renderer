@@ -140,9 +140,58 @@ export function ClockIcon({ size, color }: FormioIconProps) {
   );
 }
 
+export function TrashIcon({ size, color }: FormioIconProps) {
+  const line = stroke(size);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center' }}>
+      {/* The handle, the lid, then the bin itself, narrower than the lid that covers it. */}
+      <View
+        style={{
+          width: size * 0.34,
+          height: size * 0.14,
+          borderTopWidth: line,
+          borderLeftWidth: line,
+          borderRightWidth: line,
+          borderColor: color,
+          borderTopLeftRadius: size * 0.08,
+          borderTopRightRadius: size * 0.08,
+        }}
+      />
+      <View style={{ width: size * 0.84, height: line, backgroundColor: color }} />
+      <View
+        style={{
+          flex: 1,
+          width: size * 0.6,
+          marginTop: size * 0.06,
+          borderLeftWidth: line,
+          borderRightWidth: line,
+          borderBottomWidth: line,
+          borderColor: color,
+          borderBottomLeftRadius: size * 0.12,
+          borderBottomRightRadius: size * 0.12,
+        }}
+      />
+    </View>
+  );
+}
+
+export function PlusIcon({ size, color }: FormioIconProps) {
+  const line = stroke(size);
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: size * 0.72, height: line, backgroundColor: color }} />
+      <View
+        style={{ position: 'absolute', width: line, height: size * 0.72, backgroundColor: color }}
+      />
+    </View>
+  );
+}
+
 export const defaultFormioIcons: FormioIcons = {
   check: CheckIcon,
   chevronDown: ChevronDownIcon,
   calendar: CalendarIcon,
   clock: ClockIcon,
+  trash: TrashIcon,
+  plus: PlusIcon,
 };

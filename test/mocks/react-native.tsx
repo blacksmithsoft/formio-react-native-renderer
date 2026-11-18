@@ -28,6 +28,22 @@ export const Platform = {
     options.ios ?? options.default,
 };
 
+/**
+ * The window, which a test can resize. A tablet in landscape by default, so a suite that never
+ * mentions the window gets the wide layout it was written against.
+ */
+const DEFAULT_WINDOW = { width: 1280, height: 800, scale: 1, fontScale: 1 };
+let windowSize = DEFAULT_WINDOW;
+
+export function useWindowDimensions(): typeof DEFAULT_WINDOW {
+  return windowSize;
+}
+
+/** Test-only. Call with no argument to put the default window back. */
+export function __setWindowSize(size?: { width: number; height: number }): void {
+  windowSize = size ? { ...DEFAULT_WINDOW, ...size } : DEFAULT_WINDOW;
+}
+
 type Style = Record<string, unknown>;
 
 function flatten(style: unknown): Style {

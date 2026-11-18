@@ -146,6 +146,18 @@ export interface FieldRegistration {
 }
 
 /**
+ * A collapsible section — a phone card — that `scrollToFirstError` may need to open.
+ *
+ * A closed card does not mount its fields, so there is nothing to measure and nothing to scroll
+ * to until it opens. The renderer asks every section whether it holds the errored path and
+ * opens the ones that do.
+ */
+export interface SectionRegistration {
+  owns: (path: string) => boolean;
+  open: () => void;
+}
+
+/**
  * The host vertical scroller's current window. Published through a store, not through React
  * state, so a scroll frame does not re-render the whole form — see `windowedRows.ts`.
  */
@@ -213,6 +225,13 @@ export interface FormioRenderContextValue {
   scrollRef?: { current: FormScrollable | null };
   /** Live scroll position, when the host wants long grids to window their rows. */
   scrollMetrics?: FormScrollMetrics;
+  /** Returns the function that removes the registration again. Absent outside the renderer. */
+  registerSection?: (section: SectionRegistration) => () => void;
+  /**
+   * The path `scrollToFirstError` is waiting to reveal, if any. A section that mounts while it
+   * is set — a card nested in the card that just opened — starts open when it holds that path.
+   */
+  pendingReveal?: { readonly current: string | null };
 }
 
 const MISSING = 'FormioRenderer context is missing. Render controls inside <FormioRenderer>.';

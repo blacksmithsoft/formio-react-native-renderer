@@ -143,6 +143,26 @@ export interface FormioMetrics {
     fontSize: number;
     titleFontWeight: FormioFontWeight;
   };
+  /**
+   * Tokens that exist only in the phone layout — docs/FORMS.md §8. Everything the phone layout
+   * shares with the wide one (a control's height, a card's radius) is not here: it is the same
+   * token, given a different value by {@link FormioTheme.phoneMetrics}.
+   */
+  phone: {
+    /** Width available to the renderer below which the phone layout applies. */
+    breakpoint: number;
+    /** The chevron in a card header. */
+    cardIconSize: number;
+    /** The bin on a record card and the plus on an add button. */
+    actionIconSize: number;
+    /** The small label above a record card's title, and the count in a section badge. */
+    captionFontSize: number;
+    /** The title of a sub-card: a grid row or a table row drawn inside a card. */
+    subCardTitleFontSize: number;
+    /** Height, and minimum width, of the row-count badge beside a top-level grid's label. */
+    badgeSize: number;
+    badgePadX: number;
+  };
 }
 
 export interface FormioIconProps {
@@ -153,27 +173,44 @@ export interface FormioIconProps {
 export type FormioIcon = ComponentType<FormioIconProps>;
 
 /**
- * Four slots, injected rather than imported. A general-purpose package cannot depend on
- * `@expo/vector-icons`, and four icons is a small enough surface for both platforms to match.
+ * Six slots, injected rather than imported. A general-purpose package cannot depend on
+ * `@expo/vector-icons`, and six icons is a small enough surface for both platforms to match.
+ *
+ * There is deliberately no `chevronUp`: an open card turns `chevronDown` over, so a host that
+ * supplies one chevron never ends up with two that do not match.
  */
 export interface FormioIcons {
   check: FormioIcon;
   chevronDown: FormioIcon;
   calendar: FormioIcon;
   clock: FormioIcon;
+  /** Removes a record card — phone layout only. */
+  trash: FormioIcon;
+  /** Leads an add-row button — phone layout only. */
+  plus: FormioIcon;
 }
+
+type PartialGroups<T> = { [K in keyof T]?: Partial<T[K]> };
+
+/** Any subset of the metric tokens. The shape of {@link FormioTheme.phoneMetrics}. */
+export type FormioMetricOverrides = PartialGroups<FormioMetrics>;
 
 export interface FormioTheme {
   colors: FormioColors;
   metrics: FormioMetrics;
+  /**
+   * Metric tokens that take a different value while the phone layout is active —
+   * docs/THEMING.md. Applied over `metrics`, so a phone form is the same stylesheet with
+   * different numbers rather than a second stylesheet that has to be kept in step.
+   */
+  phoneMetrics: FormioMetricOverrides;
   icons: FormioIcons;
 }
-
-type PartialGroups<T> = { [K in keyof T]?: Partial<T[K]> };
 
 /** What a host supplies: any subset of tokens, merged over the defaults. */
 export interface PartialFormioTheme {
   colors?: PartialGroups<FormioColors>;
   metrics?: PartialGroups<FormioMetrics>;
+  phoneMetrics?: FormioMetricOverrides;
   icons?: Partial<FormioIcons>;
 }

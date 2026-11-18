@@ -7,6 +7,7 @@ import type { ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { FormioRenderer, type FormioRendererHandle } from '../../src/form/FormioRenderer';
 import type { ComponentOverrides, FormioAdapters, FormScrollMetrics } from '../../src/form/context';
 import type { FormioTelemetry } from '../../src/engine/telemetry';
+import type { FormioLayoutPreference } from '../../src/form/layoutMode';
 import { hostNodes, render, scrollCalls, type ScrollCall } from '../support/render';
 
 /** Mounting the editable renderer and poking at it, kept out of the tests themselves. */
@@ -44,6 +45,8 @@ export function mount(
     adapters?: FormioAdapters;
     telemetry?: FormioTelemetry;
     scrollMetrics?: FormScrollMetrics;
+    /** Pin the layout. Left out, it follows the measured width as it does in an app. */
+    layout?: FormioLayoutPreference;
     element?: (ref: ReturnType<typeof createRef<FormioRendererHandle>>) => ReactElement;
   } = {}
 ): Mounted {
@@ -58,6 +61,7 @@ export function mount(
         adapters={options.adapters}
         telemetry={options.telemetry}
         scrollMetrics={options.scrollMetrics}
+        layout={options.layout}
       />
     )
   );

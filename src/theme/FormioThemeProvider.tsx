@@ -29,3 +29,18 @@ export function FormioThemeProvider({ theme, children }: FormioThemeProviderProp
   const value = useMemo(() => mergeTheme(defaultFormioTheme, theme), [theme]);
   return <FormioThemeContext.Provider value={value}>{children}</FormioThemeContext.Provider>;
 }
+
+/**
+ * Hand the subtree a theme that is already resolved. Internal: the renderer uses it to swap in
+ * the phone metrics, and a host has no reason to — it supplies tokens through
+ * {@link FormioThemeProvider} and the renderer decides which set applies.
+ */
+export function FormioResolvedThemeProvider({
+  theme,
+  children,
+}: {
+  theme: FormioTheme;
+  children?: ReactNode;
+}) {
+  return <FormioThemeContext.Provider value={theme}>{children}</FormioThemeContext.Provider>;
+}

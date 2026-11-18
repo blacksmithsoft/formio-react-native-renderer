@@ -12,7 +12,9 @@ import { ComponentRenderer, NodeList } from '../ComponentRenderer';
 import { useFormioRender } from '../context';
 import { GridTableCellContext } from '../FieldShell';
 import { useFormStyles } from '../formStyles';
+import { PhoneDepthProvider, useFormioLayout, usePhoneDepth } from '../layoutMode';
 import { Notices } from '../Notice';
+import { phoneRecordFields, phoneRecordHeading } from '../phoneLayout';
 import { useFormioTheme } from '../../theme/FormioThemeProvider';
 import { useListOffset, WindowedRowList } from '../windowedRowList';
 
@@ -452,7 +454,180 @@ function CardStack({
   );
 }
 
-export function DataGrid({ component, path }: { component: FormComponent; path: string }) {
+/**
+ * The add control of a phone grid: where the next card will go, drawn as an outline of one.
+ */
+function PhoneAddButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const styles = useFormStyles();
+  const { colors, metrics, icons } = useFormioTheme();
+  const Plus = icons.plus;
+  return (
+    <Pressable style={styles.phoneAddButton} onPress={onPress} accessibilityRole="button">
+      <Plus size={metrics.phone.actionIconSize} color={colors.brand.primary} />
+      <Text style={styles.phoneAddButtonLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * `datagrid` on a phone — one card per row. docs/FORMS.md §8.
+ *
+ * A table needs a column per field, and a phone has room for two. So each row becomes a record
+ * card: a heading that says which row it is, a bin where the row may be removed, and the row's
+ * fields laid out by the same two-per-row rules as any other card. Nothing scrolls sideways,
+ * whatever `displayAsTable` says — that flag chooses between two wide layouts.
+ *
+ * At the top level the grid is a section of full cards under a label and a row count. Inside a
+ * card it is a field like any other, and its rows are sub-cards.
+ *
+ * A locked grid keeps its controls, disabled, rather than printing values as text: on a phone a
+ * read-only field is a greyed field, and a card that changes shape when the form is locked
+ * reads as a different form.
+ */
+function PhoneDataGrid({ component, path }: { component: FormComponent; path: string }) {
+  const styles = useFormStyles();
+  const { form, readOnly } = useFormioRender();
+  const { colors, metrics, icons } = useFormioTheme();
+  const depth = usePhoneDepth();
+  const offset = useGridOffset();
+
+  const rows = rowsOf(form.data, path);
+  const cellsOpen = !readOnly && !form.readOnly && !component.field.disabled;
+  const allowAdd = cellsOpen && component.grid?.allowAdd !== false;
+  const allowRemove = cellsOpen && component.grid?.allowRemove !== false;
+  const removeLabel = component.grid?.removeLabel ?? 'Remove';
+  const errors = form.errorsFor(path);
+  const topLevel = depth === 0;
+  const label = component.field.label.trim();
+  const Trash = icons.trash;
+
+  const required = component.field.required && <Text style={styles.requiredMark}> *</Text>;
+  // A card is a heading and roughly two rows of fields; close is enough for windowing.
+  const estimatedRowHeight =
+    (topLevel ? metrics.panel.padding : metrics.form.rowPadding) * 2 +
+    (metrics.control.minHeight + metrics.label.fontSize + metrics.field.gap) * 2;
+
+  return (
+    <View style={topLevel ? styles.phoneSection : styles.field}>
+      <Notices issues={component.issues} componentKey={component.key} />
+
+      {topLevel ? (
+        <View style={styles.phoneSectionHeader}>
+          {!!label && (
+            <Text style={styles.phoneSectionLabel}>
+              {label}
+              {required}
+            </Text>
+          )}
+          <View style={styles.phoneBadge}>
+            <Text style={styles.phoneBadgeText}>{String(rows.length)}</Text>
+          </View>
+        </View>
+      ) : (
+        !!label && (
+          <Text style={styles.label}>
+            {label}
+            {required}
+          </Text>
+        )
+      )}
+
+      {rows.length > 0 && (
+        <View
+          ref={offset.bodyRef}
+          onLayout={offset.captureOffset}
+          style={topLevel ? styles.phoneRecordList : styles.phoneSubRecordList}
+        >
+          <WindowedRowList
+            count={rows.length}
+            estimatedRowHeight={estimatedRowHeight}
+            tableOffsetY={offset.tableOffsetY}
+            metrics={offset.metrics}
+            onRangeChange={offset.captureOffset}
+            renderRow={(index, onRowLayout) => {
+              const row = rows[index];
+              if (!row) return null;
+              const heading = phoneRecordHeading(component, row, index);
+              const fields = phoneRecordFields(component, heading);
+              return (
+                <View
+                  key={`${path}-${index}`}
+                  style={topLevel ? styles.panel : [styles.phoneSubCard, styles.phoneSubRecord]}
+                  onLayout={onRowLayout}
+                >
+                  <View style={styles.phoneRecordHeader}>
+                    <View style={styles.phoneRecordHeading}>
+                      {!!heading.caption && <Text style={styles.phoneCaption}>{heading.caption}</Text>}
+                      <Text style={topLevel ? styles.phoneRecordTitle : styles.phoneSubRecordTitle}>
+                        {heading.title}
+                      </Text>
+                    </View>
+                    {allowRemove && rowAllowsRemove(row) && (
+                      <Pressable
+                        onPress={() => form.removeRow(path, index)}
+                        // The glyph is smaller than a fingertip; the slop makes up the difference.
+                        hitSlop={(metrics.form.touchTarget - metrics.phone.actionIconSize) / 2}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${removeLabel} ${heading.title}`}
+                      >
+                        <Trash size={metrics.phone.actionIconSize} color={colors.text.tertiary} />
+                      </Pressable>
+                    )}
+                  </View>
+                  {fields.length > 0 && (
+                    <View style={styles.phoneRecordBody}>
+                      <PhoneDepthProvider value={depth + 1}>
+                        <View style={styles.phoneCardBody}>
+                          <NodeList
+                            components={fields}
+                            parentPath={indexPath(path, index)}
+                            row={row}
+                            rowIndex={index}
+                          />
+                        </View>
+                      </PhoneDepthProvider>
+                    </View>
+                  )}
+                </View>
+              );
+            }}
+          />
+        </View>
+      )}
+
+      {rows.length === 0 && <Text style={[styles.hint, styles.controlSpacing]}>No entries yet.</Text>}
+
+      {allowAdd && (
+        <View style={topLevel ? styles.phoneSectionFooter : styles.phoneSubRecordFooter}>
+          <PhoneAddButton
+            label={component.grid?.addLabel ?? 'Add Another'}
+            onPress={() => form.addRow(path, component)}
+          />
+        </View>
+      )}
+
+      {(!!component.field.description || errors.length > 0) && (
+        <View style={topLevel ? styles.phoneSectionFooter : styles.phoneSubRecordFooter}>
+          {!!component.field.description && (
+            <Text style={styles.description}>{component.field.description}</Text>
+          )}
+          {errors.map((message) => (
+            <Text key={message} style={styles.error}>
+              {message}
+            </Text>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** `datagrid` — a table on a wide layout, record cards on a phone. */
+export function DataGrid(props: { component: FormComponent; path: string }) {
+  return useFormioLayout() === 'phone' ? <PhoneDataGrid {...props} /> : <WideDataGrid {...props} />;
+}
+
+function WideDataGrid({ component, path }: { component: FormComponent; path: string }) {
   const styles = useFormStyles();
   const { form, readOnly } = useFormioRender();
   const rows = rowsOf(form.data, path);

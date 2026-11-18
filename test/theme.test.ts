@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { defaultFormioTheme } from '../src/index';
-import { mergeTheme } from '../src/theme/mergeTheme';
+import { mergeTheme, resolvePhoneTheme } from '../src/theme/mergeTheme';
 
 /** The token contract in docs/THEMING.md, and the merge behaviour a host depends on. */
 
@@ -41,8 +41,15 @@ describe('default theme', () => {
     expect(metrics.panel.radius).toBeGreaterThan(metrics.control.radius);
   });
 
-  it('fills all four icon slots without an icon library', () => {
-    expect(Object.keys(icons).sort()).toEqual(['calendar', 'check', 'chevronDown', 'clock']);
+  it('fills all six icon slots without an icon library', () => {
+    expect(Object.keys(icons).sort()).toEqual([
+      'calendar',
+      'check',
+      'chevronDown',
+      'clock',
+      'plus',
+      'trash',
+    ]);
   });
 });
 
@@ -68,5 +75,46 @@ describe('mergeTheme', () => {
   it('ignores a missing or malformed override', () => {
     expect(mergeTheme(defaultFormioTheme, undefined)).toBe(defaultFormioTheme);
     expect(mergeTheme(defaultFormioTheme, {}).colors).toEqual(colors);
+  });
+});
+
+describe('the phone theme', () => {
+  it('pins the phone values other implementations are matched against', () => {
+    expect(metrics.phone.breakpoint).toBe(600);
+    const phone = resolvePhoneTheme(defaultFormioTheme).metrics;
+    expect(phone.control.minHeight).toBe(40);
+    expect(phone.label.fontSize).toBe(12);
+    expect(phone.panel).toMatchObject({ radius: 12, padding: 14, titleFontSize: 15 });
+    expect(phone.signature.height).toBe(110);
+  });
+
+  it('is the wide theme with the phone overlay on top, and nothing else changed', () => {
+    const phone = resolvePhoneTheme(defaultFormioTheme);
+    expect(phone.colors).toBe(colors);
+    expect(phone.icons).toBe(icons);
+    expect(phone.metrics.grid).toEqual(metrics.grid);
+    // A token the overlay does not mention keeps its wide value.
+    expect(phone.metrics.control.padY).toBe(metrics.control.padY);
+    // And the wide theme is not written to.
+    expect(metrics.control.minHeight).toBe(38);
+  });
+
+  it('resolves once per theme, so the styles built from it are built once', () => {
+    expect(resolvePhoneTheme(defaultFormioTheme)).toBe(resolvePhoneTheme(defaultFormioTheme));
+  });
+
+  it('lets a host change one phone metric and keep the rest', () => {
+    const merged = mergeTheme(defaultFormioTheme, { phoneMetrics: { control: { minHeight: 48 } } });
+    const phone = resolvePhoneTheme(merged).metrics;
+    expect(phone.control.minHeight).toBe(48);
+    expect(phone.control.radius).toBe(8);
+    expect(merged.metrics.control.minHeight).toBe(38);
+  });
+
+  it('applies a host’s wide override on a phone too, unless the overlay says otherwise', () => {
+    const merged = mergeTheme(defaultFormioTheme, { metrics: { control: { padX: 20, minHeight: 50 } } });
+    const phone = resolvePhoneTheme(merged).metrics;
+    expect(phone.control.padX).toBe(20);
+    expect(phone.control.minHeight).toBe(40);
   });
 });

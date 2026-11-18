@@ -1,7 +1,12 @@
 // Copyright 2026 BlackSmithSoft B.V.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { FormioColors, FormioMetrics, FormioTheme } from './FormioTheme';
+import type {
+  FormioColors,
+  FormioMetricOverrides,
+  FormioMetrics,
+  FormioTheme,
+} from './FormioTheme';
 import { defaultFormioIcons } from './icons';
 
 /**
@@ -116,10 +121,45 @@ const defaultMetrics: FormioMetrics = {
     htmlImageHeight: 80,
   },
   banner: { radius: 6, padding: 12, gap: 6, fontSize: 13, titleFontWeight: '600' },
+  phone: {
+    // Phones in portrait sit well under this and the narrowest tablet pane sits over it: 600dp
+    // is the shortest side at which both platforms start calling a device a tablet.
+    breakpoint: 600,
+    cardIconSize: 20,
+    actionIconSize: 18,
+    captionFontSize: 11,
+    subCardTitleFontSize: 13,
+    badgeSize: 20,
+    badgePadX: 6,
+  },
+};
+
+/**
+ * What changes on a phone. A phone form is denser than a tablet one — a 40dp control under a
+ * 12dp label, cards with 14dp of padding — and the cards are rounder because there are more of
+ * them on screen at once. Anything not listed keeps its value from `defaultMetrics`.
+ */
+const defaultPhoneMetrics: FormioMetricOverrides = {
+  control: { minHeight: 40, radius: 8, fontSize: 14, lineHeight: 20, iconSize: 18 },
+  label: { fontSize: 12, fontWeight: '400' },
+  panel: {
+    radius: 12,
+    padding: 14,
+    gap: 12,
+    titleFontSize: 15,
+    titleFontWeight: '600',
+    titleGap: 14,
+  },
+  field: { gap: 14 },
+  tick: { size: 20, radius: 4, glyphSize: 14, dotSize: 8 },
+  option: { fontSize: 14, rowGap: 10 },
+  signature: { height: 110 },
+  form: { buttonRadius: 10, buttonFontSize: 14, rowRadius: 10, rowGap: 10 },
 };
 
 export const defaultFormioTheme: FormioTheme = {
   colors: defaultColors,
   metrics: defaultMetrics,
+  phoneMetrics: defaultPhoneMetrics,
   icons: defaultFormioIcons,
 };

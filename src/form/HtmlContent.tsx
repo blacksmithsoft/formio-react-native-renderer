@@ -8,6 +8,8 @@ import { Mark } from '../render/controls/Mark';
 import { useFormioTheme } from '../theme/FormioThemeProvider';
 import { useFormioRender } from './context';
 import { useFormStyles } from './formStyles';
+import { useFormioLayout } from './layoutMode';
+import { isCrowdedHtmlTable, planPhoneHtmlTable, type PhoneHtmlField } from './phoneHtmlTable';
 
 /**
  * Authored HTML, drawn — docs/FORMS.md §8.
@@ -118,14 +120,47 @@ function HtmlImageView({ block }: { block: HtmlBlock }) {
  * An HTML `<table>` keeps a legible column width and scrolls sideways — docs/FORMS.md §8. The
  * cell's own padding, border and background are honoured; its authored width is not, because a
  * percentage of a table that is wider than the screen is not what the author measured.
+ *
+ * That is the wide layout. On a phone the table is fitted to the width instead, because there a
+ * sideways scroller is the thing that is unusable.
  */
 function HtmlTableView({ block }: { block: HtmlBlock }) {
   const styles = useFormStyles();
   const { metrics } = useFormioTheme();
+  const phone = useFormioLayout() === 'phone';
   const rows = block.rows ?? [];
   const spanOf = (cell: HtmlBlock): number => (cell.colspan && cell.colspan > 0 ? cell.colspan : 1);
   const columns = Math.max(1, ...rows.map((row) => row.reduce((sum, cell) => sum + spanOf(cell), 0)));
   const colWidth = metrics.form.tableMinColumnWidth;
+
+  // A phone form never scrolls sideways — docs/FORMS.md §8. The columns share the width the
+  // table has, in proportion to their spans, and the text in them wraps. Inputs cannot wrap, so
+  // a table with more than two to a row is drawn as cards instead.
+  if (phone && isCrowdedHtmlTable(rows)) return <HtmlTableCards rows={rows} />;
+  if (phone) {
+    return (
+      <View style={[styles.htmlTable, boxStyle(block.style, false)]}>
+        {rows.map((row, rowIndex) => (
+          <View key={rowIndex} style={[styles.htmlTableRow, rowIndex === 0 && styles.htmlTableFirstRow]}>
+            {row.map((cell, cellIndex) => (
+              <View
+                key={cellIndex}
+                style={[
+                  styles.htmlTableCell,
+                  cell.header && styles.htmlTableHeaderCell,
+                  boxStyle(cell.style, false),
+                  styles.phoneHtmlTableCell,
+                  { flex: spanOf(cell) },
+                ]}
+              >
+                <HtmlBlocks blocks={cell.children ?? []} />
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  }
 
   return (
     <ScrollView horizontal nestedScrollEnabled>
@@ -149,6 +184,65 @@ function HtmlTableView({ block }: { block: HtmlBlock }) {
         ))}
       </View>
     </ScrollView>
+  );
+}
+
+/** One input of a re-flowed table row, under the column heading it used to sit below. */
+function HtmlCardField({ field }: { field: PhoneHtmlField }) {
+  const styles = useFormStyles();
+  return (
+    <View style={styles.field}>
+      {!!field.label && <Text style={styles.label}>{field.label}</Text>}
+      <View style={field.label ? styles.controlSpacing : undefined}>
+        <HtmlBlocks blocks={field.cell.children ?? []} />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * A table of inputs on a phone: one card per body row — see `phoneHtmlTable.ts`. The cell
+ * borders and backgrounds go with the grid they belonged to; the inputs keep their own style.
+ */
+function HtmlTableCards({ rows }: { rows: HtmlBlock[][] }) {
+  const styles = useFormStyles();
+  return (
+    <View style={styles.phoneStack}>
+      {planPhoneHtmlTable(rows).map((row, rowIndex) =>
+        row.kind === 'text' ? (
+          <View key={rowIndex}>
+            {row.cells.map((cell, cellIndex) => (
+              <HtmlBlocks key={cellIndex} blocks={cell.children ?? []} />
+            ))}
+          </View>
+        ) : (
+          <View key={rowIndex} style={styles.phoneSubCard}>
+            {!!row.card.title && <Text style={styles.phoneSubRecordTitle}>{row.card.title}</Text>}
+            <View style={[styles.phoneCardBody, !!row.card.title && styles.phoneSubCardBody]}>
+              {row.card.notes.map((cell, noteIndex) => (
+                <View key={`note-${noteIndex}`} style={styles.phoneBlockGap}>
+                  <HtmlBlocks blocks={cell.children ?? []} />
+                </View>
+              ))}
+              {row.card.lines.map((line, lineIndex) =>
+                line.kind === 'single' ? (
+                  <HtmlCardField key={lineIndex} field={line.field} />
+                ) : (
+                  <View key={lineIndex} style={styles.phonePair}>
+                    <View style={styles.phonePairCell}>
+                      <HtmlCardField field={line.left} />
+                    </View>
+                    <View style={styles.phonePairCell}>
+                      <HtmlCardField field={line.right} />
+                    </View>
+                  </View>
+                )
+              )}
+            </View>
+          </View>
+        )
+      )}
+    </View>
   );
 }
 

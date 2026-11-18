@@ -16,7 +16,10 @@ import { DataMap, Tree } from './complex/Nested';
 import { FieldShell } from './FieldShell';
 import { useFormStyles } from './formStyles';
 import { HtmlBlocks } from './HtmlContent';
+import { useFormioLayout } from './layoutMode';
 import { Notices } from './Notice';
+import { phoneComponent } from './phoneLayout';
+import { PhoneFlow, PhonePanel, PhoneTable } from './PhoneCards';
 import { lookupControl, resolveOverride } from './registry';
 
 /**
@@ -48,6 +51,12 @@ export function NodeList({
   row?: Record<string, unknown>;
   rowIndex?: number;
 }) {
+  // Below the phone breakpoint a list is re-flowed into cards and rows of two rather than drawn
+  // in authored order one under another — docs/FORMS.md §8. Every list goes through here, so
+  // this is the one place the two layouts part.
+  if (useFormioLayout() === 'phone') {
+    return <PhoneFlow components={components} parentPath={parentPath} row={row} rowIndex={rowIndex} />;
+  }
   return (
     <>
       {components.map((component, index) => (
@@ -63,8 +72,11 @@ export function NodeList({
   );
 }
 
-export function ComponentRenderer({ component, parentPath, row, rowIndex }: NodeProps) {
+export function ComponentRenderer({ component: authored, parentPath, row, rowIndex }: NodeProps) {
   const { form, readOnly, overrides } = useFormioRender();
+  // On a phone the label is always on top and option lists are laid out to fit; the control and
+  // any host override are handed the component already adjusted, so neither has to ask.
+  const component = useFormioLayout() === 'phone' ? phoneComponent(authored) : authored;
 
   // Evaluated here rather than read from `form.visibleComponents`, because the renderer needs
   // the row-scoped answer for the specific row it is drawing, and the same pure function
@@ -201,15 +213,24 @@ function LayoutNode({
   row?: Record<string, unknown>;
   rowIndex?: number;
 }) {
+  const phone = useFormioLayout() === 'phone';
   switch (component.layout) {
     case 'columns':
       return <ColumnsNode component={component} path={path} row={row} rowIndex={rowIndex} />;
     case 'tabs':
       return <TabsNode component={component} path={path} row={row} rowIndex={rowIndex} />;
     case 'table':
-      return <TableNode component={component} path={path} row={row} rowIndex={rowIndex} />;
+      return phone ? (
+        <PhoneTable component={component} path={path} row={row} rowIndex={rowIndex} />
+      ) : (
+        <TableNode component={component} path={path} row={row} rowIndex={rowIndex} />
+      );
     case 'panel':
-      return <PanelNode component={component} path={path} row={row} rowIndex={rowIndex} />;
+      return phone ? (
+        <PhonePanel component={component} path={path} row={row} rowIndex={rowIndex} />
+      ) : (
+        <PanelNode component={component} path={path} row={row} rowIndex={rowIndex} />
+      );
     default:
       return <NodeList components={component.children} parentPath={path} row={row} rowIndex={rowIndex} />;
   }
@@ -321,32 +342,40 @@ function TabsNode({
 }) {
   const styles = useFormStyles();
   const { form } = useFormioRender();
+  const phone = useFormioLayout() === 'phone';
   const [selected, setSelected] = useState(0);
   const tabs = component.tabs ?? [];
   if (tabs.length === 0) return null;
 
   const active = tabs[Math.min(selected, tabs.length - 1)];
 
+  const strip = tabs.map((tab, index) => {
+    const isSelected = tab === active;
+    const hasErrors = form.showAllErrors && tabHasErrors(tab.children, path, form.errors);
+    return (
+      <Pressable
+        key={tab.key || `tab-${index}`}
+        style={[styles.tab, isSelected && styles.tabSelected]}
+        onPress={() => setSelected(index)}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: isSelected }}
+      >
+        <Text style={[styles.tabLabel, isSelected && styles.tabLabelSelected]}>{tab.label}</Text>
+        {hasErrors && <View style={styles.tabErrorDot} />}
+      </Pressable>
+    );
+  });
+
   return (
     <View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
-        {tabs.map((tab, index) => {
-          const isSelected = tab === active;
-          const hasErrors = form.showAllErrors && tabHasErrors(tab.children, path, form.errors);
-          return (
-            <Pressable
-              key={tab.key || `tab-${index}`}
-              style={[styles.tab, isSelected && styles.tabSelected]}
-              onPress={() => setSelected(index)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: isSelected }}
-            >
-              <Text style={[styles.tabLabel, isSelected && styles.tabLabelSelected]}>{tab.label}</Text>
-              {hasErrors && <View style={styles.tabErrorDot} />}
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {phone ? (
+        // Nothing on a phone scrolls sideways, so a strip too long for one line takes a second.
+        <View style={[styles.tabBar, styles.tabBarWrap]}>{strip}</View>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
+          {strip}
+        </ScrollView>
+      )}
       {active && <NodeList components={active.children} parentPath={path} row={row} rowIndex={rowIndex} />}
     </View>
   );

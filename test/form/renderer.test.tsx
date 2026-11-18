@@ -642,8 +642,10 @@ describe('layout', () => {
       .map((node) => styleOf(node).flexBasis)
       .filter(Boolean);
 
-  it('honours the authored widths on a phone-width container', () => {
-    const view = mount(columns);
+  // The wide layout has no breakpoint of its own: it is the authored grid at any width. What a
+  // phone gets instead is the phone layout — test/form/phone.test.tsx.
+  it('honours the authored widths on a phone-width container when pinned wide', () => {
+    const view = mount(columns, { layout: 'wide' });
     view.measure(390);
     expect(spansOf(view)).toEqual(['50%', '50%']);
   });
@@ -655,20 +657,23 @@ describe('layout', () => {
   });
 
   it('puts four quarter-width columns on one row', () => {
-    const view = mount({
-      components: [
-        {
-          type: 'columns',
-          key: 'row',
-          columns: [
-            { width: 3, size: 'md', components: [textfield('a')] },
-            { width: 3, size: 'md', components: [textfield('b')] },
-            { width: 3, size: 'md', components: [textfield('c')] },
-            { width: 3, size: 'md', components: [textfield('d')] },
-          ],
-        },
-      ],
-    });
+    const view = mount(
+      {
+        components: [
+          {
+            type: 'columns',
+            key: 'row',
+            columns: [
+              { width: 3, size: 'md', components: [textfield('a')] },
+              { width: 3, size: 'md', components: [textfield('b')] },
+              { width: 3, size: 'md', components: [textfield('c')] },
+              { width: 3, size: 'md', components: [textfield('d')] },
+            ],
+          },
+        ],
+      },
+      { layout: 'wide' }
+    );
     view.measure(390);
     expect(spansOf(view)).toEqual(['25%', '25%', '25%', '25%']);
   });

@@ -51,6 +51,7 @@ export { noopTelemetry } from './engine/telemetry';
 export { FormioRenderer, SubmitBar } from './form/FormioRenderer';
 export { COMPONENT_REGISTRY, describeCoverage, lookupControl, resolveOverride } from './form/registry';
 export { FormioRenderProvider, useFormioContainerWidth, useFormioRender } from './form/context';
+export { useFormioLayout } from './form/layoutMode';
 export { FormioWindowedRows } from './form/windowedRowList';
 export { TextControl } from './form/controls/TextControl';
 
@@ -143,7 +144,9 @@ export type {
   FormScrollMetrics,
   FormScrollWindow,
   FieldRegistration,
+  SectionRegistration,
 } from './form/context';
+export type { FormioLayout, FormioLayoutPreference } from './form/layoutMode';
 export type { ComponentEntry, HostCapability } from './form/registry';
 export type { FormioWindowedRowsProps } from './form/windowedRowList';
 
@@ -183,6 +186,7 @@ export type {
   PartialFormioTheme,
   FormioColors,
   FormioMetrics,
+  FormioMetricOverrides,
   FormioIcon,
   FormioIconProps,
   FormioIcons,

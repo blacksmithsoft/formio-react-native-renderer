@@ -57,6 +57,21 @@ describe('layout is measured, not assumed', () => {
     expect(offenders.map((file) => file.path)).toEqual([]);
   });
 
+  it('consults the window in one place only, and only as an upper bound', () => {
+    const readers = files.filter(({ text }) => /useWindowDimensions/.test(code(text)));
+    // Before the first layout pass there is no measurement, and a window narrower than the phone
+    // breakpoint proves the container is too (§8). That one inference lives in `layoutMode`. A
+    // second reader would be using the window as a width, which is the mistake above.
+    expect(readers.map((file) => file.path)).toEqual(['form/layoutMode.tsx']);
+  });
+
+  it('chooses the phone layout from one comparison, which every component then reads', () => {
+    const deciders = files.filter(({ text }) => /phone\s*\.\s*breakpoint/.test(code(text)));
+    // A component that compared widths for itself could disagree with the rest of the form for
+    // a frame — a table next to cards. They read `useFormioLayout()` instead.
+    expect(deciders.map((file) => file.path)).toEqual(['form/FormioRenderer.tsx']);
+  });
+
   it('resolves column widths from the schema alone, identically in both renderers', () => {
     for (const path of ['form/columnLayout.ts', 'render/columnSpan.ts']) {
       const source = files.find((file) => file.path === path);

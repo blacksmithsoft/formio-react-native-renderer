@@ -23,6 +23,24 @@ export function mergeTheme(base: FormioTheme, override?: PartialFormioTheme): Fo
   return {
     colors: mergeGroups(base.colors, override.colors),
     metrics: mergeGroups(base.metrics, override.metrics),
+    phoneMetrics: mergeGroups(base.phoneMetrics, override.phoneMetrics),
     icons: { ...base.icons, ...override.icons },
   };
+}
+
+const phoneThemes = new WeakMap<FormioTheme, FormioTheme>();
+
+/**
+ * The theme a form draws with while the phone layout is active: `phoneMetrics` applied over
+ * `metrics`, colours and icons untouched.
+ *
+ * Cached on the theme it was derived from, because `createStyles` caches a stylesheet per theme
+ * object — a fresh object on every render would rebuild every stylesheet on every render.
+ */
+export function resolvePhoneTheme(theme: FormioTheme): FormioTheme {
+  const cached = phoneThemes.get(theme);
+  if (cached) return cached;
+  const phone = { ...theme, metrics: mergeGroups(theme.metrics, theme.phoneMetrics) };
+  phoneThemes.set(theme, phone);
+  return phone;
 }

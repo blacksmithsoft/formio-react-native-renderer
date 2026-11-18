@@ -103,7 +103,11 @@ RN/
 │   │   ├── FieldShell.tsx            label, description, errors, measurement
 │   │   ├── controls/                 one file per input family
 │   │   ├── complex/                  data grid and edit grid
-│   │   └── columnLayout.ts           Bootstrap collapse, as a pure function
+│   │   ├── columnLayout.ts           Bootstrap collapse, as a pure function
+│   │   ├── layoutMode.tsx            phone or wide, decided once at the root
+│   │   ├── phoneLayout.ts            the phone rules, as a pure function
+│   │   ├── phoneHtmlTable.ts         an HTML table of inputs, as cards
+│   │   └── PhoneCards.tsx            the cards the phone layout is drawn in
 │   ├── shells/                       layer 3 — scroll, safe area, submit bar
 │   ├── sync/                         schema cache, outbox, two-phase binaries
 │   ├── compat/                       the schema transform — runs server-side
@@ -113,7 +117,7 @@ RN/
 │   │   ├── FormioThemeProvider.tsx   context + partial merge
 │   │   ├── mergeTheme.ts             partial over defaults
 │   │   ├── createStyles.ts           themed stylesheets, cached per theme
-│   │   └── icons.tsx                 the four slots, primitive defaults
+│   │   └── icons.tsx                 the six slots, primitive defaults
 │   └── index.ts                      the public API, and nothing more
 └── test/
     ├── conformance.test.ts           runs ../fixtures

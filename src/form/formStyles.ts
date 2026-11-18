@@ -524,4 +524,174 @@ export const useFormStyles = createStyles(({ colors, metrics }) => ({
     fontSize: metrics.control.fontSize,
     color: colors.text.primary,
   },
+
+  /*
+   * The phone layout — docs/FORMS.md §8.
+   *
+   * Most of a phone form is drawn with the styles above: `panel` is the card, `label` and
+   * `input` are the field. They look different on a phone because the theme they are built from
+   * is — see `resolvePhoneTheme`. What follows is only what has no wide counterpart.
+   */
+
+  /**
+   * Every block in a card ends with `field.gap` of bottom margin. This cancels the last one, so
+   * the card's padding is the same on all four sides. Load-bearing for the same reason as the
+   * negative margin on `columnsRow`.
+   */
+  phoneCardBody: {
+    marginBottom: -metrics.field.gap,
+  },
+  /** An open card's chevron. The slot is `chevronDown`; open is the same icon turned over. */
+  phoneChevronOpen: {
+    transform: [{ rotate: '180deg' }],
+  },
+  /**
+   * Two fields side by side. Bottom-aligned, so a label that wraps to a second line pushes its
+   * own control down rather than leaving the two inputs at different heights.
+   */
+  phonePair: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    columnGap: metrics.grid.gutter,
+  },
+  /** `minWidth: 0` lets a long value shrink inside its half instead of pushing the other out. */
+  phonePairCell: {
+    flex: 1,
+    minWidth: 0,
+  },
+  /** A wrapping tab strip. A phone form never scrolls sideways, tab strips included. */
+  tabBarWrap: {
+    flexWrap: 'wrap',
+    rowGap: metrics.form.tabGap,
+  },
+
+  /** A card inside a card: a nested section, a grid row, a table row. */
+  phoneSubCard: {
+    borderWidth: metrics.control.borderWidth,
+    borderColor: colors.border.default,
+    borderRadius: metrics.form.rowRadius,
+    padding: metrics.form.rowPadding,
+    backgroundColor: colors.surface.washAlt,
+  },
+  /** What every block in a card ends with, for a block that has no field frame to supply it. */
+  phoneBlockGap: {
+    marginBottom: metrics.field.gap,
+  },
+  /** Sub-cards that follow one another, spaced by a gap so the last one adds nothing below. */
+  phoneStack: {
+    gap: metrics.form.rowGap,
+    marginBottom: metrics.field.gap,
+  },
+  phoneSubCardTitle: {
+    flex: 1,
+    fontSize: metrics.phone.subCardTitleFontSize,
+    fontWeight: metrics.panel.titleFontWeight,
+    color: colors.text.primary,
+  },
+  phoneSubCardBody: {
+    marginTop: metrics.form.rowGap,
+  },
+
+  /** A top-level data grid: a labelled run of record cards rather than one card of fields. */
+  phoneSection: {
+    marginBottom: metrics.panel.gap,
+  },
+  phoneSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: metrics.label.gap,
+    marginBottom: metrics.form.rowGap,
+  },
+  phoneSectionLabel: {
+    flexShrink: 1,
+    fontSize: metrics.label.fontSize,
+    fontWeight: metrics.panel.titleFontWeight,
+    color: colors.text.tertiary,
+    textTransform: 'uppercase',
+  },
+  phoneBadge: {
+    minWidth: metrics.phone.badgeSize,
+    height: metrics.phone.badgeSize,
+    borderRadius: metrics.phone.badgeSize / 2,
+    paddingHorizontal: metrics.phone.badgePadX,
+    borderWidth: metrics.control.borderWidth,
+    borderColor: colors.border.default,
+    backgroundColor: colors.surface.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneBadgeText: {
+    fontSize: metrics.phone.captionFontSize,
+    fontWeight: metrics.panel.titleFontWeight,
+    color: colors.text.secondary,
+  },
+  /**
+   * The record cards of one grid. Each carries a bottom margin so a windowed list can measure
+   * a row with its spacing; this cancels the last, and whatever follows adds its own gap back.
+   */
+  phoneRecordList: {
+    marginBottom: -metrics.panel.gap,
+  },
+  phoneSubRecordList: {
+    marginTop: metrics.label.gap,
+    marginBottom: -metrics.form.rowGap,
+  },
+  phoneSubRecord: {
+    marginBottom: metrics.form.rowGap,
+  },
+  phoneRecordHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: metrics.control.gap,
+  },
+  phoneRecordHeading: {
+    flex: 1,
+  },
+  phoneCaption: {
+    fontSize: metrics.phone.captionFontSize,
+    color: colors.text.tertiary,
+  },
+  phoneRecordTitle: {
+    fontSize: metrics.control.fontSize,
+    fontWeight: metrics.panel.titleFontWeight,
+    color: colors.text.primary,
+  },
+  phoneSubRecordTitle: {
+    fontSize: metrics.phone.subCardTitleFontSize,
+    fontWeight: metrics.panel.titleFontWeight,
+    color: colors.text.primary,
+  },
+  phoneRecordBody: {
+    marginTop: metrics.form.rowGap,
+  },
+  /** Dashed, because it is where a card will be rather than a card that is. */
+  phoneAddButton: {
+    minHeight: metrics.form.buttonHeight,
+    borderRadius: metrics.form.buttonRadius,
+    borderWidth: metrics.control.borderWidth,
+    borderStyle: 'dashed',
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.surface.card,
+    paddingHorizontal: metrics.form.buttonPadX,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: metrics.label.gap,
+  },
+  phoneAddButtonLabel: {
+    flexShrink: 1,
+    fontSize: metrics.form.buttonFontSize,
+    fontWeight: metrics.form.buttonFontWeight,
+    color: colors.brand.primary,
+  },
+  phoneSectionFooter: {
+    marginTop: metrics.panel.gap,
+  },
+  phoneSubRecordFooter: {
+    marginTop: metrics.form.rowGap,
+  },
+  /** An HTML table cell that shares the row instead of holding a fixed width. */
+  phoneHtmlTableCell: {
+    minWidth: 0,
+  },
 }));
