@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import type { ReactTestInstance } from 'react-test-renderer';
+import { parseForm } from '../../src/engine/parseForm';
+import type { FormComponent } from '../../src/engine/types';
 import { FormioRenderer } from '../../src/form/FormioRenderer';
 import { defaultFormioTheme } from '../../src/theme/defaultTheme';
 import { resolvePhoneTheme } from '../../src/theme/mergeTheme';
@@ -451,6 +453,81 @@ describe('every real template, on a phone', () => {
     );
     // Styles, not nodes: a failure should name the row, not print the tree under it.
     expect(crowded.map((node) => JSON.stringify(styleOf(node)))).toEqual([]);
+  });
+
+  /** Open every card and visit every Form.io tab; collect every string the tree drew. */
+  const drawnText = (view: Mounted): Set<string> => {
+    const seen = new Set<string>();
+    const harvest = () => {
+      for (const entry of view.texts()) {
+        if (entry.trim()) seen.add(entry.trim());
+      }
+    };
+    openAll(view);
+    harvest();
+    for (const tab of view.pressables().filter((node) => node.props.accessibilityRole === 'tab')) {
+      act(() => tab.props.onPress());
+      openAll(view);
+      harvest();
+    }
+    return seen;
+  };
+
+  /**
+   * Labels of leaf inputs the schema expects on screen.
+   * Skips hidden fields, containers (wide tables reuse their label as a column header; phone
+   * shows the children instead), unlabeled checkboxes, and conditional fields (wide table
+   * headers can still name a column the phone correctly hides until the condition passes).
+   */
+  const expectedFieldLabels = (schema: unknown): string[] => {
+    const labels = new Set<string>();
+    const walk = (components: FormComponent[]) => {
+      for (const component of components) {
+        if (component.hidden) continue;
+        const label = component.field.label.trim();
+        const blankTick = component.base === 'checkbox' && label === '';
+        if (
+          component.role === 'input' &&
+          label &&
+          !blankTick &&
+          !component.conditional
+        ) {
+          labels.add(label);
+        }
+        walk(component.children);
+        for (const column of component.columns ?? []) walk(column.children);
+        for (const tab of component.tabs ?? []) walk(tab.children);
+        for (const row of component.tableRows ?? []) {
+          for (const cell of row) walk(cell.children);
+        }
+      }
+    };
+    walk(parseForm(schema).components);
+    return [...labels].sort();
+  };
+
+  it.each(files)('%s phone reaches every field label the wide layout reaches', (file) => {
+    const schema = JSON.parse(readFileSync(join(TEMPLATES, file), 'utf8')) as unknown;
+    const expected = expectedFieldLabels(schema);
+    const phoneHit = drawnText(mount(schema, { layout: 'phone' }));
+    const wideView = mount(schema, { layout: 'wide' });
+    wideView.measure(TABLET);
+    const wideHit = drawnText(wideView);
+
+    // Chrome / row-count text may differ; a field the tablet can show must also appear on phone.
+    const missingOnPhone = expected.filter((label) => wideHit.has(label) && !phoneHit.has(label));
+    expect(missingOnPhone, file).toEqual([]);
+  });
+
+  it('keeps kitchen-sink Presence/Media/Nested as in-form tabs, not only those panes', () => {
+    const schema = JSON.parse(readFileSync(join(TEMPLATES, 'mixed-formio-components.json'), 'utf8'));
+    const view = mount(schema, { layout: 'phone' });
+    openAll(view);
+    // Sibling fields outside mixTabs must still be on screen (UID / Site Name), not sliced away.
+    expect(view.texts()).toEqual(expect.arrayContaining(['Site Name', 'Contact Email', 'Presence', 'Media']));
+    const tabs = view.pressables().filter((node) => node.props.accessibilityRole === 'tab');
+    expect(tabs.map((node) => JSON.stringify(textsIn(node))).join(' ')).toMatch(/Presence/);
+    expect(tabs.map((node) => JSON.stringify(textsIn(node))).join(' ')).toMatch(/Media/);
   });
 });
 
