@@ -98,6 +98,8 @@ export interface HtmlBoxStyle extends HtmlTextStyle {
 export interface HtmlSpan {
   text: string;
   style?: HtmlTextStyle;
+  /** Absolute `http(s)` / `mailto` / `tel` target from an authored `<a href>`. */
+  href?: string;
 }
 
 export interface HtmlBlock {
@@ -336,6 +338,7 @@ export function htmlBlocksHaveChrome(blocks: HtmlBlock[]): boolean {
 function isChrome(block: HtmlBlock): boolean {
   if (block.kind === 'image' || block.kind === 'table') return true;
   if (block.kind === 'field' || block.kind === 'radio') return true;
+  if (block.kind === 'text' && block.spans?.some((span) => !!span.href)) return true;
   if (isPainted(block.style)) return true;
   if (block.kind === 'box') return (block.children ?? []).some(isChrome);
   return false;
@@ -572,6 +575,7 @@ function convertElement(node: El, inherited: HtmlTextStyle): Flow[] {
   const style = styleOf(decls, inherited, tag);
   const text = textPart(style);
   const box = boxPart(style);
+  const href = tag === 'a' ? normalizeExternalUrl(attrs.href) : undefined;
 
   if (style.row) {
     return [
@@ -582,7 +586,7 @@ function convertElement(node: El, inherited: HtmlTextStyle): Flow[] {
     ];
   }
 
-  const flow = flowOf(node.children, text);
+  const flow = stampHref(flowOf(node.children, text), href);
 
   // An inline element keeps its content in the surrounding line. Its own inline styles are
   // already resolved into the spans, so nothing is lost by dissolving the element itself.
@@ -594,6 +598,32 @@ function convertElement(node: El, inherited: HtmlTextStyle): Flow[] {
   if (tag === 'li') children.unshift(bulletBlock(text));
   if (children.length === 0 && !isPainted(box)) return [];
   return [{ type: 'block', block: { kind: 'box', ...(box ? { style: box } : {}), children } }];
+}
+
+/** Keep an authored `<a href>` on every text run inside it so the renderer can open it. */
+function stampHref(flow: Flow[], href: string | undefined): Flow[] {
+  if (!href) return flow;
+  return flow.map((item) => {
+    if (item.type !== 'spans') return item;
+    return {
+      type: 'spans',
+      spans: item.spans.map((span) => (span.href ? span : { ...span, href })),
+    };
+  });
+}
+
+/**
+ * Only absolute, app-openable targets. Relative paths and `javascript:` stay inert — the form
+ * has no page origin, and script URLs are not something a field worker should launch.
+ */
+export function normalizeExternalUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const value = raw.trim();
+  if (!value || value.startsWith('#') || /^javascript:/i.test(value)) return undefined;
+  if (/^(https?:|mailto:|tel:)/i.test(value)) return value;
+  if (value.startsWith('//')) return `https:${value}`;
+  if (/^[a-z0-9.-]+\.[a-z]{2,}([/:?#].*)?$/i.test(value)) return `https://${value}`;
+  return undefined;
 }
 
 /**
@@ -681,9 +711,11 @@ function textBlock(spans: HtmlSpan[], inherited: HtmlTextStyle): HtmlBlock {
   const style = pruneStyle(inherited);
   const runs = spans.map((span) => {
     const diff = diffText(span.style, inherited);
-    return diff ? { text: span.text, style: diff } : { text: span.text };
+    const run: HtmlSpan = diff ? { text: span.text, style: diff } : { text: span.text };
+    if (span.href) run.href = span.href;
+    return run;
   });
-  const uniform = runs.every((run) => !run.style);
+  const uniform = runs.every((run) => !run.style && !run.href);
   return {
     kind: 'text',
     text: runs.map((run) => run.text).join(''),
@@ -718,7 +750,7 @@ function mergeSpans(spans: HtmlSpan[]): HtmlSpan[] {
   const out: HtmlSpan[] = [];
   for (const span of spans) {
     const last = out[out.length - 1];
-    if (last && sameText(last.style, span.style)) {
+    if (last && sameText(last.style, span.style) && last.href === span.href) {
       last.text += span.text;
       continue;
     }
@@ -954,6 +986,10 @@ function styleOf(decls: Decls, inherited: HtmlTextStyle, tag: string): HtmlBoxSt
   if (tag === 'strong' || tag === 'b') style.bold = true;
   if (tag === 'i' || tag === 'em' || tag === 'var' || tag === 'cite') style.italic = true;
   if (tag === 'u' || tag === 'ins') style.underline = true;
+  if (tag === 'a') {
+    style.underline = true;
+    if (style.color === undefined) style.color = '#0563C1';
+  }
   if (tag === 's' || tag === 'strike' || tag === 'del') style.strike = true;
   if (tag === 'small') style.fontSize = round(base * 0.83);
   if (tag === 'big') style.fontSize = round(base * 1.2);

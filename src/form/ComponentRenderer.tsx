@@ -15,7 +15,7 @@ import { EditGrid, DataGrid } from './complex/Grids';
 import { DataMap, Tree } from './complex/Nested';
 import { FieldShell } from './FieldShell';
 import { useFormStyles } from './formStyles';
-import { HtmlBlocks } from './HtmlContent';
+import { HtmlBlocks, LinkifiedText } from './HtmlContent';
 import { useFormioLayout } from './layoutMode';
 import { Notices } from './Notice';
 import { phoneComponent } from './phoneLayout';
@@ -473,7 +473,7 @@ function DisplayNode({ component }: { component: FormComponent }) {
           <HtmlBlocks blocks={blocks} />
         </View>
       ) : (
-        !!component.html && <Text style={styles.contentText}>{component.html}</Text>
+        !!component.html && <LinkifiedText text={component.html} style={styles.contentText} />
       )}
     </>
   );

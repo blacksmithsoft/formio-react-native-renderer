@@ -13,6 +13,7 @@ import {
 import { Text, View } from 'react-native';
 import type { FormComponent } from '../engine/types';
 import { useFormioRender } from './context';
+import { LinkifiedText } from './HtmlContent';
 import { useFormStyles } from './formStyles';
 
 /**
@@ -104,7 +105,9 @@ export function FieldShell({ component, path, errors, children }: FieldShellProp
 
   const footer = (
     <>
-      {!!field.description && <Text style={styles.description}>{field.description}</Text>}
+      {!!field.description && (
+        <LinkifiedText text={field.description} style={styles.description} />
+      )}
       {errors.map((message) => (
         <Text key={message} style={styles.error}>
           {message}

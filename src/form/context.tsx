@@ -134,6 +134,11 @@ export interface FormioAdapters {
     options: { label: string; value: string }[],
     current: string
   ) => Promise<string | null | undefined>;
+  /**
+   * Open an authored website / mailto / tel link. Defaults to the system browser via
+   * `Linking.openURL` when absent — field copy should leave the app, not an in-form WebView.
+   */
+  openUrl?: (url: string) => void;
 }
 
 export interface FieldRegistration {

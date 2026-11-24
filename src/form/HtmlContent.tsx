@@ -1,15 +1,72 @@
 // Copyright 2026 BlackSmithSoft B.V.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
-import type { HtmlBlock, HtmlBoxStyle, HtmlEdges, HtmlTextStyle } from '../engine/htmlBlocks';
+import { Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import type { ImageStyle, StyleProp, TextStyle, ViewStyle } from 'react-native';
+import type { HtmlBlock, HtmlBoxStyle, HtmlEdges, HtmlSpan, HtmlTextStyle } from '../engine/htmlBlocks';
+import { normalizeExternalUrl } from '../engine/htmlBlocks';
 import { Mark } from '../render/controls/Mark';
 import { useFormioTheme } from '../theme/FormioThemeProvider';
 import { useFormioRender } from './context';
 import { useFormStyles } from './formStyles';
 import { useFormioLayout } from './layoutMode';
 import { isCrowdedHtmlTable, planPhoneHtmlTable, type PhoneHtmlField } from './phoneHtmlTable';
+
+/** Bare `http(s)` / `www.` runs inside flattened instructional copy. */
+const PLAIN_URL_RE = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi;
+
+function openExternalUrl(url: string, openUrl?: (href: string) => void): void {
+  if (openUrl) {
+    openUrl(url);
+    return;
+  }
+  void Linking.openURL(url).catch(() => undefined);
+}
+
+/**
+ * Instructional copy with pressable website URLs. Used for flattened `content` / `htmlelement`
+ * text and for field descriptions that still carry a raw URL string.
+ */
+export function LinkifiedText({
+  text,
+  style,
+}: {
+  text: string;
+  style?: StyleProp<TextStyle>;
+}) {
+  const { adapters } = useFormioRender();
+  const parts: Array<{ text: string; href?: string }> = [];
+  let last = 0;
+  PLAIN_URL_RE.lastIndex = 0;
+  for (const match of text.matchAll(PLAIN_URL_RE)) {
+    const start = match.index ?? 0;
+    if (start > last) parts.push({ text: text.slice(last, start) });
+    const raw = match[0] ?? '';
+    const href = normalizeExternalUrl(raw.startsWith('www.') ? `https://${raw}` : raw);
+    parts.push(href ? { text: raw, href } : { text: raw });
+    last = start + raw.length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) });
+  if (parts.length === 0) parts.push({ text });
+
+  return (
+    <Text style={style}>
+      {parts.map((part, index) =>
+        part.href ? (
+          <Text
+            key={index}
+            style={{ textDecorationLine: 'underline', color: '#0563C1' }}
+            onPress={() => openExternalUrl(part.href!, adapters.openUrl)}
+          >
+            {part.text}
+          </Text>
+        ) : (
+          <Text key={index}>{part.text}</Text>
+        )
+      )}
+    </Text>
+  );
+}
 
 /**
  * Authored HTML, drawn — docs/FORMS.md §8.
@@ -63,20 +120,33 @@ function HtmlBoxView({ block }: { block: HtmlBlock }) {
 
 function HtmlTextView({ block }: { block: HtmlBlock }) {
   const styles = useFormStyles();
+  const { adapters } = useFormioRender();
   const spans = block.spans;
   return (
     <Text style={[styles.htmlText, textStyle(block.style)]}>
       {spans
-        ? spans.map((span, index) =>
-            span.style ? (
-              <Text key={index} style={textStyle(span.style)}>
-                {span.text}
-              </Text>
-            ) : (
-              span.text
-            )
-          )
+        ? spans.map((span, index) => <HtmlSpanView key={index} span={span} openUrl={adapters.openUrl} />)
         : block.text}
+    </Text>
+  );
+}
+
+function HtmlSpanView({
+  span,
+  openUrl,
+}: {
+  span: HtmlSpan;
+  openUrl?: (href: string) => void;
+}) {
+  if (!span.href) {
+    return span.style ? <Text style={textStyle(span.style)}>{span.text}</Text> : <>{span.text}</>;
+  }
+  return (
+    <Text
+      style={[textStyle(span.style), { textDecorationLine: 'underline' }]}
+      onPress={() => openExternalUrl(span.href!, openUrl)}
+    >
+      {span.text}
     </Text>
   );
 }
