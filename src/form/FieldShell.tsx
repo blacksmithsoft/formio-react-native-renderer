@@ -98,7 +98,7 @@ export function FieldShell({ component, path, errors, children }: FieldShellProp
   const { field } = component;
   const label = !isSelfLabelled(component) && !!field.label && (
     <Text style={styles.label}>
-      {field.label}
+      <LinkifiedText text={field.label} />
       {field.required && <Text style={styles.requiredMark}> *</Text>}
     </Text>
   );

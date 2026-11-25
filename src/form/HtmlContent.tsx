@@ -141,9 +141,13 @@ function HtmlSpanView({
   if (!span.href) {
     return span.style ? <Text style={textStyle(span.style)}>{span.text}</Text> : <>{span.text}</>;
   }
+  // Match LinkifiedText: underline + link blue unless the author already set a color.
   return (
     <Text
-      style={[textStyle(span.style), { textDecorationLine: 'underline' }]}
+      style={[
+        textStyle(span.style),
+        { textDecorationLine: 'underline', color: span.style?.color ?? '#0563C1' },
+      ]}
       onPress={() => openExternalUrl(span.href!, openUrl)}
     >
       {span.text}

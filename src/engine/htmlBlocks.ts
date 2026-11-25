@@ -314,6 +314,15 @@ export function htmlToText(html: string): string {
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
     .replace(/<li[^>]*>/gi, '\u2022 ')
+    // Keep the target when the visible label is not itself a URL, so LinkifiedText can open it.
+    .replace(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi, (_match, _q, href, inner) => {
+      const label = String(inner).replace(/<[^>]*>/g, '').trim();
+      const url = normalizeExternalUrl(String(href));
+      if (!url) return label;
+      if (!label) return url;
+      if (/https?:\/\//i.test(label) || /^www\./i.test(label) || label === url) return label;
+      return `${label} ${url}`;
+    })
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&lt;/gi, '<')
